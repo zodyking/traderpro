@@ -7,6 +7,9 @@ definePageMeta({
 })
 
 const store = useBrokerStore()
+const config = useRuntimeConfig()
+
+const alpacaOAuthEnabled = computed(() => Boolean(config.public.alpacaOAuthEnabled))
 
 type Tab = 'equity' | 'calendar' | 'attribution' | 'mistakes' | 'plan-execution'
 const activeTab = ref<Tab>('equity')
@@ -109,14 +112,40 @@ function planExecutionRows(): PlanVsExecutionRow[] {
             Equity curve, calendar P&amp;L heatmap, and trade attribution.
           </p>
         </div>
-        <NuxtLink to="/app/settings">
-          <UiBtn variant="secondary" size="sm">
-            <svg class="mr-1.5 size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M3 8h10M3 4h10M3 12h6" stroke-linecap="round" />
-            </svg>
-            Import Data
-          </UiBtn>
-        </NuxtLink>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <a
+            v-if="alpacaOAuthEnabled"
+            href="/api/broker/oauth/alpaca/authorize"
+          >
+            <UiBtn variant="secondary" size="sm">
+              Connect Alpaca
+            </UiBtn>
+          </a>
+          <div
+            v-else
+            class="flex items-center gap-2"
+            title="Set ALPACA_CLIENT_ID to enable Alpaca OAuth"
+          >
+            <UiBtn
+              variant="secondary"
+              size="sm"
+              disabled
+            >
+              Connect Alpaca
+            </UiBtn>
+            <span class="hidden text-xs text-text-muted sm:inline">
+              OAuth not configured
+            </span>
+          </div>
+          <NuxtLink to="/app/settings">
+            <UiBtn variant="secondary" size="sm">
+              <svg class="mr-1.5 size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 8h10M3 4h10M3 12h6" stroke-linecap="round" />
+              </svg>
+              Import Data
+            </UiBtn>
+          </NuxtLink>
+        </div>
       </div>
 
       <!-- Tabs -->

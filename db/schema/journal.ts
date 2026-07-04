@@ -53,3 +53,24 @@ export const journalEntries = pgTable(
     index('idx_journal').on(table.userId, table.symbolId, table.setupTag, table.openedAt),
   ],
 )
+
+export type JournalChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+export const journalConversations = pgTable(
+  'journal_conversations',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    journalEntryId: uuid('journal_entry_id')
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: 'cascade' }),
+    messages: jsonb('messages').$type<JournalChatMessage[]>().notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+)

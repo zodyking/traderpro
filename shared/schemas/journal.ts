@@ -43,6 +43,12 @@ export const journalListQuerySchema = z.object({
   cursor: z.string().optional(),
 })
 
+export const journalChatPostSchema = z.object({
+  message: z.string().min(1).max(4000),
+})
+
+export type JournalChatPostInput = z.infer<typeof journalChatPostSchema>
+
 export type JournalCreateInput = z.infer<typeof journalCreateSchema>
 export type JournalUpdateInput = z.infer<typeof journalUpdateSchema>
 export type JournalListQuery = z.infer<typeof journalListQuerySchema>

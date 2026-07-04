@@ -13,7 +13,9 @@ const modalMode = ref<'create' | 'edit'>('create')
 const editingEntry = ref<JournalEntry | null>(null)
 
 const showReviewPanel = ref(false)
+const showChatPanel = ref(false)
 const reviewEntryId = ref<string | null>(null)
+const chatEntryId = ref<string | null>(null)
 
 const filterSetupTag = ref('')
 const filterSymbolId = ref('')
@@ -70,6 +72,8 @@ async function handleDelete(entry: JournalEntry) {
 }
 
 async function openReview(entry: JournalEntry) {
+  chatEntryId.value = null
+  showChatPanel.value = false
   reviewEntryId.value = entry.id
   showReviewPanel.value = true
   await journalStore.fetchReviews(entry.id)
@@ -78,6 +82,18 @@ async function openReview(entry: JournalEntry) {
 function closeReview() {
   showReviewPanel.value = false
   reviewEntryId.value = null
+}
+
+function openChat(entry: JournalEntry) {
+  reviewEntryId.value = null
+  showReviewPanel.value = false
+  chatEntryId.value = entry.id
+  showChatPanel.value = true
+}
+
+function closeChat() {
+  showChatPanel.value = false
+  chatEntryId.value = null
 }
 
 async function handleRequestReview(mode: JournalCoachingMode) {
@@ -168,7 +184,7 @@ async function loadMore() {
       <!-- Entry list -->
       <div
         class="flex-1 overflow-y-auto p-4"
-        :class="showReviewPanel ? 'lg:max-w-[calc(100%-380px)]' : ''"
+        :class="showReviewPanel || showChatPanel ? 'lg:max-w-[calc(100%-380px)]' : ''"
       >
         <!-- Error banner -->
         <div
@@ -226,6 +242,7 @@ async function loadMore() {
               @edit="openEdit"
               @delete="handleDelete"
               @review="openReview"
+              @chat="openChat"
             />
             <!-- Confirm delete overlay -->
             <div
@@ -279,6 +296,26 @@ async function loadMore() {
           @close="closeReview"
           @request-review="handleRequestReview"
         />
+      </aside>
+
+      <!-- Journal chat panel (right side) -->
+      <aside
+        v-if="showChatPanel && chatEntryId"
+        class="hidden w-[380px] shrink-0 border-l border-border-hair lg:flex lg:flex-col"
+      >
+        <div class="relative flex h-full flex-col">
+          <button
+            type="button"
+            class="absolute right-3 top-3 z-10 rounded p-1 text-text-muted hover:bg-bg-raised hover:text-text-primary"
+            aria-label="Close chat"
+            @click="closeChat"
+          >
+            <svg class="size-4" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.53 4.47L9.06 8l2.47 2.53-1.06 1.06L8 9.06l-2.53 2.53-1.06-1.06L6.94 8 4.41 5.47l1.06-1.06L8 6.94l2.53-2.53 1 1.06z" />
+            </svg>
+          </button>
+          <JournalJournalChatPanel :entry-id="chatEntryId" />
+        </div>
       </aside>
     </div>
 
@@ -334,6 +371,22 @@ async function loadMore() {
             @close="closeReview"
             @request-review="handleRequestReview"
           />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Mobile journal chat sheet -->
+    <Teleport to="body">
+      <div
+        v-if="showChatPanel && chatEntryId"
+        class="fixed inset-0 z-50 flex items-end lg:hidden"
+        @click.self="closeChat"
+      >
+        <div
+          class="h-[70dvh] w-full rounded-t-2xl border-t border-border-strong bg-bg-base shadow-2xl"
+          @click.stop
+        >
+          <JournalJournalChatPanel :entry-id="chatEntryId" />
         </div>
       </div>
     </Teleport>

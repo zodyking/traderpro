@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockEnqueueBrokerSyncJob = vi.fn().mockResolvedValue(undefined)
 const mockImportCsv = vi.fn()
+const mockSyncAlpacaConnection = vi.fn()
 
 vi.mock('../server/domains/broker/queue', () => ({
   enqueueBrokerSyncJob: (...args: unknown[]) => mockEnqueueBrokerSyncJob(...args),
@@ -9,6 +10,10 @@ vi.mock('../server/domains/broker/queue', () => ({
 
 vi.mock('../server/domains/broker/service', () => ({
   importCsv: (...args: unknown[]) => mockImportCsv(...args),
+}))
+
+vi.mock('../server/domains/broker/alpaca', () => ({
+  syncAlpacaConnection: (...args: unknown[]) => mockSyncAlpacaConnection(...args),
 }))
 
 const mockDb = {
@@ -113,6 +118,10 @@ describe('processBrokerSync', () => {
       status: 'queued',
       stats: { import: importInput },
     }])
+    chainable.limit.mockResolvedValueOnce([{
+      id: 'conn-1',
+      broker: 'generic',
+    }])
 
     const stats = await processBrokerSync('job-1', 'user-1', 'conn-1')
 
@@ -121,12 +130,43 @@ describe('processBrokerSync', () => {
     expect(mockDb.update).toHaveBeenCalled()
   })
 
+  it('syncs Alpaca executions when connection broker is alpaca', async () => {
+    mockSyncAlpacaConnection.mockResolvedValueOnce({
+      connectionId: 'conn-1',
+      accountId: 'acct-1',
+      inserted: 5,
+      skipped: 1,
+      unresolvedSymbols: [],
+    })
+
+    chainable.limit.mockResolvedValueOnce([{
+      id: 'job-1',
+      connectionId: 'conn-1',
+      status: 'queued',
+      stats: {},
+    }])
+    chainable.limit.mockResolvedValueOnce([{
+      id: 'conn-1',
+      broker: 'alpaca',
+    }])
+
+    const stats = await processBrokerSync('job-1', 'user-1', 'conn-1')
+
+    expect(mockSyncAlpacaConnection).toHaveBeenCalledWith('user-1', 'conn-1')
+    expect(mockImportCsv).not.toHaveBeenCalled()
+    expect(stats.result?.inserted).toBe(5)
+  })
+
   it('marks the job done without import when no CSV payload exists', async () => {
     chainable.limit.mockResolvedValueOnce([{
       id: 'job-1',
       connectionId: 'conn-1',
       status: 'queued',
       stats: {},
+    }])
+    chainable.limit.mockResolvedValueOnce([{
+      id: 'conn-1',
+      broker: 'generic',
     }])
 
     await processBrokerSync('job-1', 'user-1', 'conn-1')

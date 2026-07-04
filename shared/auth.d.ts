@@ -10,6 +10,8 @@ declare module '#auth-utils' {
   interface UserSession {
     mfaPending?: boolean
     pendingUserId?: string
+    alpacaOAuthState?: string
+    alpacaOAuthUserId?: string
   }
 }
 

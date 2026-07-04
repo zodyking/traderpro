@@ -25,6 +25,7 @@ export default defineNuxtConfig({
     public: {
       appName: 'AxiomEdge',
       tagline: 'Evidence over instinct.',
+      alpacaOAuthEnabled: Boolean(process.env.ALPACA_CLIENT_ID),
     },
   },
 })

@@ -3,6 +3,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { brokerConnections, brokerSyncJobs } from '../../../db/schema'
 import type { BrokerImportInput } from '../../../shared/schemas/broker'
 import { useDb } from '../../utils/db'
+import { syncAlpacaConnection } from './alpaca'
 import { importCsv } from './service'
 import { enqueueBrokerSyncJob } from './queue'
 
@@ -105,7 +106,17 @@ export async function processBrokerSync(jobId: string, userId: string, connectio
     const stats = job.stats as BrokerSyncJobStats
     let resultStats: BrokerSyncJobStats = { ...stats }
 
-    if (stats.import) {
+    const [connection] = await db
+      .select()
+      .from(brokerConnections)
+      .where(eq(brokerConnections.id, connectionId))
+      .limit(1)
+
+    if (connection?.broker === 'alpaca') {
+      const result = await syncAlpacaConnection(userId, connectionId)
+      resultStats = { ...stats, result }
+    }
+    else if (stats.import) {
       const result = await importCsv(userId, stats.import)
       resultStats = { ...stats, result }
     }

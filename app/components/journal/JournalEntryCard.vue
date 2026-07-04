@@ -9,6 +9,7 @@ const emit = defineEmits<{
   edit: [entry: JournalEntry]
   delete: [entry: JournalEntry]
   review: [entry: JournalEntry]
+  chat: [entry: JournalEntry]
 }>()
 
 const journalStore = useJournalStore()
@@ -212,6 +213,17 @@ const reviewLoading = computed(() => journalStore.reviewLoading[props.entry.id] 
       </span>
 
       <div class="flex items-center gap-1">
+        <UiBtn
+          variant="ghost"
+          size="sm"
+          @click="emit('chat', entry)"
+        >
+          <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2 4.5h12v7H5.5L2 14.5V4.5z" />
+          </svg>
+          Chat
+        </UiBtn>
+
         <UiBtn
           variant="ghost"
           size="sm"

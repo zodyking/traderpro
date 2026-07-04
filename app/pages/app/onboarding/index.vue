@@ -39,12 +39,12 @@ const EXPERIENCE_OPTIONS = [
   { id: 'advanced', label: 'Experienced', description: 'I use systematic methods and quantitative rules.' },
 ]
 const TIMEFRAME_OPTIONS = [
-  { id: '1m', label: '1m', description: 'Scalping' },
-  { id: '5m', label: '5m', description: 'Day trade' },
-  { id: '15m', label: '15m', description: 'Intraday' },
-  { id: '1h', label: '1h', description: 'Swing' },
-  { id: '4h', label: '4h', description: 'Position' },
-  { id: '1d', label: '1D', description: 'Long-term' },
+  { id: '1m', label: '1m', description: 'Fast tape' },
+  { id: '5m', label: '5m', description: 'Intraday entries' },
+  { id: '15m', label: '15m', description: 'Session rhythm' },
+  { id: '1h', label: '1h', description: 'Hourly structure' },
+  { id: '4h', label: '4h', description: 'Multi-day view' },
+  { id: '1d', label: '1D', description: 'Daily trend' },
 ]
 const selectedExperience = ref<'novice' | 'developing' | 'advanced'>('novice')
 const selectedTimeframe = ref('1h')
@@ -296,8 +296,11 @@ function prevStep() {
           </div>
 
           <div>
-            <p class="mb-2 text-sm font-medium text-text-secondary">
-              Preferred timeframe
+            <p class="mb-1 text-sm font-medium text-text-secondary">
+              Default chart interval
+            </p>
+            <p class="mb-2 text-xs text-text-muted">
+              Bar size on your charts — not how long you hold trades.
             </p>
             <div class="flex flex-wrap gap-2">
               <button

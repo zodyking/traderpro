@@ -1,7 +1,8 @@
 import { closeRedis, initRedis } from '../utils/redis'
 
 export default defineNitroPlugin((nitroApp) => {
-  const { redisUrl } = useRuntimeConfig()
+  const config = useRuntimeConfig()
+  const redisUrl = config.redisUrl || process.env.REDIS_URL || ''
 
   if (!redisUrl) {
     console.warn('[redis] REDIS_URL is not configured')

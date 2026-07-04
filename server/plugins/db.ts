@@ -20,7 +20,8 @@ export function initDbPool(databaseUrl: string) {
 }
 
 export default defineNitroPlugin((nitroApp) => {
-  const { databaseUrl } = useRuntimeConfig()
+  const config = useRuntimeConfig()
+  const databaseUrl = config.databaseUrl || process.env.DATABASE_URL || ''
 
   if (!databaseUrl) {
     console.warn('[db] DATABASE_URL is not configured')

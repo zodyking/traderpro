@@ -8,6 +8,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core'
+import type { EmailNotificationPreferences } from '../../shared/types/email'
 import { bytea, citext, inet } from './pg-types'
 
 export const users = pgTable(
@@ -19,6 +20,10 @@ export const users = pgTable(
     displayName: text('display_name').notNull(),
     experience: text('experience').notNull().default('novice'),
     uiMode: text('ui_mode').notNull().default('novice'),
+    emailPreferences: jsonb('email_preferences')
+      .$type<EmailNotificationPreferences>()
+      .notNull()
+      .default(sql`'{"signUp":true,"login":true,"alerts":true,"backtests":true,"productUpdates":false}'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },

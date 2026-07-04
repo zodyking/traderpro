@@ -43,6 +43,13 @@
       "when": 1783143644558,
       "tag": "0005_journal_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783147244558,
+      "tag": "0006_user_email_preferences",
+      "breakpoints": true
     }
   ]
 }

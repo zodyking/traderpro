@@ -1,6 +1,7 @@
 import type { CandleContext } from '../strategy/compiler'
 import { getCandles } from '../market-data/service'
 import { checkUsage } from '../billing/entitlements'
+import { queueAuthEmail, notifyAlertFiredForUser } from '../email/service'
 import { getActiveAlertsForUser, markAlertFired } from './service'
 import { evaluateCompiledCondition } from './evaluator'
 import { useRedis } from '../../utils/redis'
@@ -108,6 +109,7 @@ export async function scanSymbols(
         }
         matches.push(match)
         await markAlertFired(alert.id)
+        queueAuthEmail(() => notifyAlertFiredForUser(userId, symbolId, now))
         await onProgress?.({ pct, stage: 'match', symbolId, match })
         try {
           const redis = useRedis()

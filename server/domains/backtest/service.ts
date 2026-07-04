@@ -20,6 +20,8 @@ import { calculateMetrics } from './metrics'
 import { runMonteCarlo, type MonteCarloResult } from './monte-carlo'
 import { checkUsage, incrementUsage } from '../billing/entitlements'
 import { trackEvent } from '../analytics/service'
+import { queueAuthEmail, notifyBacktestComplete } from '../email/service'
+import { getActiveUserById } from '../../utils/auth'
 import { enqueueBacktestJob, removeBacktestJob } from './queue'
 import { simulateLongOnly, type SimulatorCandle } from './simulator'
 
@@ -409,6 +411,18 @@ export async function runBacktest(runId: string) {
       tradeCount: allTrades.length,
       symbolCount: symbolIds.length,
     })
+
+    const user = await getActiveUserById(run.userId)
+    if (user) {
+      queueAuthEmail(() => notifyBacktestComplete({
+        userId: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        runId,
+        runLabel: `Run ${runId.slice(0, 8)}`,
+        tradeCount: allTrades.length,
+      }))
+    }
   }
   catch (error) {
     const message = error instanceof Error ? error.message : 'Backtest failed'

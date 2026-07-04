@@ -1,4 +1,5 @@
 import { registerSchema } from '#shared/schemas/auth'
+import { queueAuthEmail, notifyWelcome } from '../../domains/email/service'
 import { createUser, findUserByEmail, toSessionUser } from '../../utils/auth'
 import { hashPassword } from '../../utils/password'
 
@@ -19,6 +20,12 @@ export default defineEventHandler(async (event) => {
     passwordHash,
     displayName: body.displayName,
   })
+
+  queueAuthEmail(() => notifyWelcome({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+  }))
 
   await setUserSession(event, {
     user: toSessionUser(user),

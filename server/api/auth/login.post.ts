@@ -1,4 +1,5 @@
 import { loginSchema } from '#shared/schemas/auth'
+import { queueAuthEmail, notifyLogin } from '../../domains/email/service'
 import { findUserByEmail, toSessionUser, userHasVerifiedMfa } from '../../utils/auth'
 import { verifyPassword } from '../../utils/password'
 
@@ -36,6 +37,12 @@ export default defineEventHandler(async (event) => {
   await setUserSession(event, {
     user: toSessionUser(user),
   })
+
+  queueAuthEmail(() => notifyLogin({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+  }, { ip: getRequestIP(event, { xForwardedFor: true }) }))
 
   return { user: toSessionUser(user) }
 })

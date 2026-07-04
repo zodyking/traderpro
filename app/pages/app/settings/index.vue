@@ -307,6 +307,10 @@ async function signOut() {
             </div>
           </UiPanel>
 
+          <UiPanel title="Email notifications">
+            <SettingsEmailNotificationsPanel />
+          </UiPanel>
+
           <UiPanel title="Security">
             <SettingsMfaPanel />
           </UiPanel>

@@ -1,4 +1,5 @@
 import { mfaVerifySchema } from '#shared/schemas/auth'
+import { queueAuthEmail, notifyLogin } from '../../../domains/email/service'
 import { verifyUserTotpCode } from '../../../domains/identity/mfa'
 import {
   getActiveUserById,
@@ -31,6 +32,12 @@ export default defineEventHandler(async (event) => {
     mfaPending: undefined,
     pendingUserId: undefined,
   })
+
+  queueAuthEmail(() => notifyLogin({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+  }, { ip: getRequestIP(event, { xForwardedFor: true }) }))
 
   return { user: toSessionUser(user) }
 })

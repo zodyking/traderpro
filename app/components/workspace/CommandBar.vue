@@ -152,19 +152,7 @@ function onSymbolSelect(symbol: { id: string }) {
         <kbd class="ml-1 hidden rounded border border-border-hair px-1 font-mono text-2xs text-text-muted lg:inline">⌘K</kbd>
       </button>
 
-      <button
-        type="button"
-        class="flex h-8 items-center gap-2 rounded-md border border-border-hair px-2.5 text-xs text-text-secondary transition-colors hover:bg-bg-raised hover:text-text-primary"
-        aria-label="Account menu"
-      >
-        <span class="flex size-6 items-center justify-center rounded-full bg-indigo/20 font-mono text-2xs text-indigo">
-          U
-        </span>
-        <span class="hidden sm:inline">Account</span>
-        <svg class="size-3 text-text-muted" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-          <path d="M3 4.5L6 7.5L9 4.5" />
-        </svg>
-      </button>
+      <WorkspaceAccountMenu />
     </div>
   </header>
 </template>

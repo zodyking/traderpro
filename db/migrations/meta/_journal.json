@@ -36,6 +36,13 @@
       "when": 1783140044558,
       "tag": "0004_timescale_continuous_aggregates",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783143644558,
+      "tag": "0005_journal_conversations",
+      "breakpoints": true
     }
   ]
 }

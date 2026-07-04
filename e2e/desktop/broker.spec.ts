@@ -8,6 +8,17 @@ test.describe('Broker performance page tab switching', () => {
     await expect(page.getByRole('heading', { name: 'Broker Performance' })).toBeVisible()
   })
 
+  test('Connect Alpaca button is visible in page header', async ({ page }) => {
+    const connectAlpaca = page.getByRole('button', { name: 'Connect Alpaca' })
+    await expect(connectAlpaca).toBeVisible()
+    // OAuth may be disabled in CI — either an active link or a disabled configure hint
+    const oauthHint = page.getByText('OAuth not configured')
+    const isEnabled = await connectAlpaca.isEnabled()
+    if (!isEnabled) {
+      await expect(oauthHint).toBeVisible()
+    }
+  })
+
   test('Calendar P&L tab replaces equity content', async ({ page }) => {
     const tabNav = page.getByRole('navigation', { name: 'Performance tabs' })
 

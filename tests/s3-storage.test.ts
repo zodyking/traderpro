@@ -55,14 +55,14 @@ describe('S3 storage', () => {
 
     for (const key of envKeys) {
       originalEnv[key] = process.env[key]
-      delete process.env[key]
+      Reflect.deleteProperty(process.env, key)
     }
   })
 
   afterEach(() => {
     for (const key of envKeys) {
       if (originalEnv[key] === undefined) {
-        delete process.env[key]
+        Reflect.deleteProperty(process.env, key)
       }
       else {
         process.env[key] = originalEnv[key]

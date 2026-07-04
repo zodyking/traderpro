@@ -53,9 +53,8 @@ function createProcessor(queueName: QueueName) {
     }
   }
 
-  return async (job: { id?: string; name: string }) => {
-    console.log(`[worker:${queueName}] not implemented — job ${job.id ?? 'unknown'} (${job.name})`)
-  }
+  const _exhaustive: never = queueName
+  throw new Error(`Unknown queue: ${_exhaustive}`)
 }
 
 function startWorkers(connection: IORedis) {

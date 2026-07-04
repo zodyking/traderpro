@@ -1,5 +1,5 @@
 import { loginSchema } from '#shared/schemas/auth'
-import { findUserByEmail, toSessionUser } from '../../utils/auth'
+import { findUserByEmail, toSessionUser, userHasVerifiedMfa } from '../../utils/auth'
 import { verifyPassword } from '../../utils/password'
 
 export default defineEventHandler(async (event) => {
@@ -20,6 +20,17 @@ export default defineEventHandler(async (event) => {
       statusCode: 401,
       statusMessage: 'Invalid email or password',
     })
+  }
+
+  const mfaRequired = await userHasVerifiedMfa(user.id)
+
+  if (mfaRequired) {
+    await setUserSession(event, {
+      mfaPending: true,
+      pendingUserId: user.id,
+    })
+
+    return { mfaRequired: true as const }
   }
 
   await setUserSession(event, {

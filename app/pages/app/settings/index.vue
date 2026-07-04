@@ -5,6 +5,7 @@ definePageMeta({
 })
 
 const store = useBrokerStore()
+const { theme, setTheme } = useTheme()
 
 const activeTab = ref<'broker' | 'account'>('broker')
 
@@ -140,8 +141,43 @@ function handleImported() {
         <!-- Account tab -->
         <div
           v-else-if="activeTab === 'account'"
-          class="mx-auto max-w-xl"
+          class="mx-auto max-w-xl flex flex-col gap-4"
         >
+          <UiPanel title="Appearance">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-sm font-medium text-text-primary">
+                  Theme
+                </p>
+                <p class="mt-0.5 text-xs text-text-muted">
+                  Switch between dark and light mode.
+                </p>
+              </div>
+              <div class="flex rounded-md border border-border-hair bg-bg-raised p-0.5">
+                <button
+                  type="button"
+                  class="rounded px-3 py-1.5 text-xs font-medium transition-colors"
+                  :class="theme === 'dark'
+                    ? 'bg-bg-overlay text-text-primary'
+                    : 'text-text-muted hover:text-text-secondary'"
+                  @click="setTheme('dark')"
+                >
+                  Dark
+                </button>
+                <button
+                  type="button"
+                  class="rounded px-3 py-1.5 text-xs font-medium transition-colors"
+                  :class="theme === 'light'
+                    ? 'bg-bg-overlay text-text-primary'
+                    : 'text-text-muted hover:text-text-secondary'"
+                  @click="setTheme('light')"
+                >
+                  Light
+                </button>
+              </div>
+            </div>
+          </UiPanel>
+
           <UiPanel title="Account Settings">
             <p class="text-sm text-text-secondary">
               Account management settings coming soon.

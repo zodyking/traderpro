@@ -4,120 +4,191 @@ definePageMeta({
   middleware: 'auth',
 })
 
-type Stage = {
-  number: number
-  title: string
-  description: string
-  lessons: Lesson[]
-  status: 'locked' | 'available' | 'in_progress' | 'complete'
-}
-
 type Lesson = {
   id: string
   title: string
   source: string
   duration: string
-  complete: boolean
 }
 
-const stages: Stage[] = [
+type Stage = {
+  number: number
+  title: string
+  description: string
+  lessons: Lesson[]
+}
+
+const STAGES: Stage[] = [
   {
     number: 1,
     title: 'Foundation',
     description: 'Market structure, order types, and how price is formed.',
-    status: 'in_progress',
     lessons: [
-      { id: 'f1', title: 'How exchanges work', source: 'Core', duration: '8 min', complete: true },
-      { id: 'f2', title: 'Bid/ask spread and liquidity', source: 'Core', duration: '6 min', complete: true },
-      { id: 'f3', title: 'Market vs. limit orders', source: 'Core', duration: '5 min', complete: false },
-      { id: 'f4', title: 'Reading a candlestick chart', source: 'Core', duration: '10 min', complete: false },
+      { id: 'f1', title: 'How exchanges work', source: 'Core', duration: '8 min' },
+      { id: 'f2', title: 'Bid/ask spread and liquidity', source: 'Core', duration: '6 min' },
+      { id: 'f3', title: 'Market vs. limit orders', source: 'Core', duration: '5 min' },
+      { id: 'f4', title: 'Reading a candlestick chart', source: 'Core', duration: '10 min' },
     ],
   },
   {
     number: 2,
     title: 'Technical Analysis',
     description: 'Indicators, patterns, and reading price action.',
-    status: 'available',
     lessons: [
-      { id: 't1', title: 'Moving averages (SMA vs EMA)', source: 'Core', duration: '9 min', complete: false },
-      { id: 't2', title: 'RSI and momentum', source: 'Core', duration: '8 min', complete: false },
-      { id: 't3', title: 'Support and resistance', source: 'Core', duration: '12 min', complete: false },
-      { id: 't4', title: 'Volume confirmation', source: 'Mistake cluster', duration: '7 min', complete: false },
+      { id: 't1', title: 'Moving averages (SMA vs EMA)', source: 'Core', duration: '9 min' },
+      { id: 't2', title: 'RSI and momentum', source: 'Core', duration: '8 min' },
+      { id: 't3', title: 'Support and resistance', source: 'Core', duration: '12 min' },
+      { id: 't4', title: 'Volume confirmation', source: 'Mistake cluster', duration: '7 min' },
     ],
   },
   {
     number: 3,
     title: 'Risk Management',
     description: 'Position sizing, stop-loss discipline, and drawdown control.',
-    status: 'locked',
     lessons: [
-      { id: 'r1', title: 'Risk-reward ratio fundamentals', source: 'Core', duration: '10 min', complete: false },
-      { id: 'r2', title: 'Sizing by fixed risk %', source: 'Core', duration: '8 min', complete: false },
-      { id: 'r3', title: 'Why traders skip stops', source: 'Mistake cluster', duration: '6 min', complete: false },
-      { id: 'r4', title: 'Max daily loss rules', source: 'Core', duration: '7 min', complete: false },
+      { id: 'r1', title: 'Risk-reward ratio fundamentals', source: 'Core', duration: '10 min' },
+      { id: 'r2', title: 'Sizing by fixed risk %', source: 'Core', duration: '8 min' },
+      { id: 'r3', title: 'Why traders skip stops', source: 'Mistake cluster', duration: '6 min' },
+      { id: 'r4', title: 'Max daily loss rules', source: 'Core', duration: '7 min' },
     ],
   },
   {
     number: 4,
     title: 'Strategy Building',
     description: 'Constructing rule-based systems and avoiding curve-fitting.',
-    status: 'locked',
     lessons: [
-      { id: 's1', title: 'Entry signal design', source: 'Core', duration: '11 min', complete: false },
-      { id: 's2', title: 'Exit rules and take-profit logic', source: 'Core', duration: '9 min', complete: false },
-      { id: 's3', title: 'Over-optimising for past data', source: 'Mistake cluster', duration: '8 min', complete: false },
-      { id: 's4', title: 'Walk-forward testing basics', source: 'Core', duration: '12 min', complete: false },
+      { id: 's1', title: 'Entry signal design', source: 'Core', duration: '11 min' },
+      { id: 's2', title: 'Exit rules and take-profit logic', source: 'Core', duration: '9 min' },
+      { id: 's3', title: 'Over-optimising for past data', source: 'Mistake cluster', duration: '8 min' },
+      { id: 's4', title: 'Walk-forward testing basics', source: 'Core', duration: '12 min' },
     ],
   },
   {
     number: 5,
     title: 'Backtesting & Validation',
     description: 'Running backtests, interpreting metrics, and stress-testing strategies.',
-    status: 'locked',
     lessons: [
-      { id: 'b1', title: 'Reading Sharpe and Sortino', source: 'Core', duration: '9 min', complete: false },
-      { id: 'b2', title: 'Max drawdown and recovery', source: 'Core', duration: '8 min', complete: false },
-      { id: 'b3', title: '"Exploratory" results (< 30 trades)', source: 'Mistake cluster', duration: '6 min', complete: false },
-      { id: 'b4', title: 'Data quality warnings', source: 'Core', duration: '7 min', complete: false },
+      { id: 'b1', title: 'Reading Sharpe and Sortino', source: 'Core', duration: '9 min' },
+      { id: 'b2', title: 'Max drawdown and recovery', source: 'Core', duration: '8 min' },
+      { id: 'b3', title: '"Exploratory" results (< 30 trades)', source: 'Mistake cluster', duration: '6 min' },
+      { id: 'b4', title: 'Data quality warnings', source: 'Core', duration: '7 min' },
     ],
   },
   {
     number: 6,
     title: 'Live Trading',
     description: 'Bridging from backtests to live capital with guardrails.',
-    status: 'locked',
     lessons: [
-      { id: 'l1', title: 'Paper trading before going live', source: 'Core', duration: '8 min', complete: false },
-      { id: 'l2', title: 'Slippage and execution realism', source: 'Core', duration: '7 min', complete: false },
-      { id: 'l3', title: 'Emotional discipline under drawdown', source: 'Mistake cluster', duration: '10 min', complete: false },
-      { id: 'l4', title: 'Scaling position size gradually', source: 'Core', duration: '9 min', complete: false },
+      { id: 'l1', title: 'Paper trading before going live', source: 'Core', duration: '8 min' },
+      { id: 'l2', title: 'Slippage and execution realism', source: 'Core', duration: '7 min' },
+      { id: 'l3', title: 'Emotional discipline under drawdown', source: 'Mistake cluster', duration: '10 min' },
+      { id: 'l4', title: 'Scaling position size gradually', source: 'Core', duration: '9 min' },
     ],
   },
 ]
 
-function completedCount(stage: Stage) {
-  return stage.lessons.filter((l) => l.complete).length
+type StageStatus = 'locked' | 'available' | 'in_progress' | 'complete'
+
+const completedLessons = ref<Set<string>>(new Set())
+const loading = ref(true)
+const saving = ref<string | null>(null)
+const expandedStage = ref<number | null>(1)
+
+onMounted(async () => {
+  try {
+    const data = await $fetch<{ completedLessons: string[] }>('/api/learning/progress')
+    completedLessons.value = new Set(data.completedLessons)
+  }
+  catch {
+    completedLessons.value = new Set()
+  }
+  finally {
+    loading.value = false
+  }
+})
+
+function isLessonComplete(lessonId: string): boolean {
+  return completedLessons.value.has(lessonId)
 }
 
-function progressPct(stage: Stage) {
+function completedCount(stage: Stage): number {
+  return stage.lessons.filter(l => isLessonComplete(l.id)).length
+}
+
+function progressPct(stage: Stage): number {
   return Math.round((completedCount(stage) / stage.lessons.length) * 100)
 }
 
-const stageStatusClass: Record<Stage['status'], string> = {
+function stageStatus(stage: Stage): StageStatus {
+  const prev = STAGES.find(s => s.number === stage.number - 1)
+  if (prev && stageStatus(prev) !== 'complete') {
+    return 'locked'
+  }
+
+  const done = completedCount(stage)
+  if (done === stage.lessons.length) return 'complete'
+  if (done > 0) return 'in_progress'
+  if (stage.number === 1) return 'in_progress'
+  return 'available'
+}
+
+const stages = computed(() =>
+  STAGES.map(stage => ({
+    ...stage,
+    status: stageStatus(stage),
+    lessons: stage.lessons.map(lesson => ({
+      ...lesson,
+      complete: isLessonComplete(lesson.id),
+    })),
+  })),
+)
+
+async function toggleLesson(lessonId: string, complete: boolean) {
+  saving.value = lessonId
+  const next = new Set(completedLessons.value)
+  if (complete) {
+    next.add(lessonId)
+  }
+  else {
+    next.delete(lessonId)
+  }
+  completedLessons.value = next
+
+  try {
+    const data = await $fetch<{ completedLessons: string[] }>('/api/learning/progress', {
+      method: 'PATCH',
+      body: { lessonId, complete },
+    })
+    completedLessons.value = new Set(data.completedLessons)
+  }
+  catch {
+    const rollback = new Set(completedLessons.value)
+    if (complete) {
+      rollback.delete(lessonId)
+    }
+    else {
+      rollback.add(lessonId)
+    }
+    completedLessons.value = rollback
+  }
+  finally {
+    saving.value = null
+  }
+}
+
+const stageStatusClass: Record<StageStatus, string> = {
   locked: 'border-border-hair bg-bg-surface text-text-muted',
   available: 'border-accent/40 bg-accent/5 text-text-primary',
   in_progress: 'border-accent bg-accent/10 text-text-primary',
   complete: 'border-bull/40 bg-bull/10 text-text-primary',
 }
 
-const stageNumberClass: Record<Stage['status'], string> = {
+const stageNumberClass: Record<StageStatus, string> = {
   locked: 'bg-bg-raised text-text-muted',
   available: 'bg-accent/20 text-accent',
   in_progress: 'bg-accent text-white',
   complete: 'bg-bull text-white',
 }
-
-const expandedStage = ref<number | null>(1)
 
 function toggle(num: number) {
   expandedStage.value = expandedStage.value === num ? null : num
@@ -135,7 +206,21 @@ function toggle(num: number) {
       </p>
     </header>
 
-    <div class="flex flex-col gap-3">
+    <div
+      v-if="loading"
+      class="flex flex-col gap-3"
+    >
+      <UiSkeleton
+        v-for="i in 4"
+        :key="i"
+        class="h-24 w-full"
+      />
+    </div>
+
+    <div
+      v-else
+      class="flex flex-col gap-3"
+    >
       <div
         v-for="stage in stages"
         :key="stage.number"
@@ -223,11 +308,15 @@ function toggle(num: number) {
               :key="lesson.id"
               class="flex items-center gap-3 rounded-lg border border-border-hair bg-bg-base px-3 py-2.5"
             >
-              <span
-                class="flex size-5 shrink-0 items-center justify-center rounded-full border text-2xs"
+              <button
+                type="button"
+                class="flex size-5 shrink-0 items-center justify-center rounded-full border text-2xs transition-colors"
                 :class="lesson.complete
                   ? 'border-bull bg-bull/10 text-bull'
-                  : 'border-border-strong bg-transparent text-text-muted'"
+                  : 'border-border-strong bg-transparent text-text-muted hover:border-accent hover:text-accent'"
+                :disabled="saving === lesson.id"
+                :aria-label="lesson.complete ? 'Mark incomplete' : 'Mark complete'"
+                @click="toggleLesson(lesson.id, !lesson.complete)"
               >
                 <svg
                   v-if="lesson.complete"
@@ -240,7 +329,7 @@ function toggle(num: number) {
                 >
                   <path d="M2 6l3 3 5-5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
-              </span>
+              </button>
               <span class="min-w-0 flex-1">
                 <span
                   class="block truncate text-sm"

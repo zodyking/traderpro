@@ -4,13 +4,8 @@ import { checkUsage } from '../billing/entitlements'
 import { getActiveAlertsForUser, markAlertFired } from './service'
 import { evaluateCompiledCondition } from './evaluator'
 import { useRedis } from '../../utils/redis'
-
-export type ScanMatch = {
-  alertId: string
-  symbolId: string
-  conditionHash: string
-  firedAt: string
-}
+import type { ScanMatch } from '../../../shared/types/scanner'
+import type { ScanProgressEvent } from './types'
 
 export type ScanResult = {
   matches: ScanMatch[]
@@ -20,6 +15,8 @@ export type ScanResult = {
   deniedReason?: string
 }
 
+const COOLDOWN_MS = 60 * 60 * 1000 // 1 hour between re-fires
+
 /**
  * Scan active alerts for a user against the given symbol IDs.
  * Respects the scannerSymbols entitlement limit.
@@ -28,6 +25,7 @@ export async function scanSymbols(
   userId: string,
   symbolIds?: string[],
   interval: string = '1d',
+  onProgress?: (event: ScanProgressEvent) => void | Promise<void>,
 ): Promise<ScanResult> {
   const entitlement = await checkUsage(userId, 'scannerSymbols')
   if (!entitlement.allowed) {
@@ -61,6 +59,7 @@ export async function scanSymbols(
   const capped = resolvedSymbolIds.slice(0, entitlement.limit)
   const matches: ScanMatch[] = []
   const now = new Date().toISOString()
+  const nowMs = Date.now()
 
   const toDate = new Date()
   const fromDate = new Date(toDate)
@@ -68,7 +67,11 @@ export async function scanSymbols(
   const from = fromDate.toISOString().split('T')[0]!
   const to = toDate.toISOString().split('T')[0]!
 
-  for (const symbolId of capped) {
+  for (let i = 0; i < capped.length; i++) {
+    const symbolId = capped[i]!
+    const pct = Math.round(10 + ((i + 1) / capped.length) * 85)
+    await onProgress?.({ pct, stage: 'scanning', symbolId })
+
     let candleData: { candles: Array<{ time: string; open: number; high: number; low: number; close: number; volume?: number }> }
     try {
       candleData = await getCandles({ symbolId, interval: interval as Parameters<typeof getCandles>[0]['interval'], from, to })
@@ -90,15 +93,21 @@ export async function scanSymbols(
     const symbolAlerts = [...globalAlerts, ...(alertsBySymbol.get(symbolId) ?? [])]
 
     for (const alert of symbolAlerts) {
+      if (alert.lastFiredAt && nowMs - alert.lastFiredAt.getTime() < COOLDOWN_MS) {
+        continue
+      }
+
       const fired = evaluateCompiledCondition(alert.condition, ctx)
       if (fired) {
-        matches.push({
+        const match: ScanMatch = {
           alertId: alert.id,
           symbolId,
           conditionHash: alert.conditionHash,
           firedAt: now,
-        })
+        }
+        matches.push(match)
         await markAlertFired(alert.id)
+        await onProgress?.({ pct, stage: 'match', symbolId, match })
         try {
           const redis = useRedis()
           const payload = JSON.stringify({ alertId: alert.id, symbolId, firedAt: now })

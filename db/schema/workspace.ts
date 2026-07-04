@@ -9,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import type { CompiledCondition } from '../../shared/types/strategy'
 import { users } from './identity'
 import { symbols } from './market'
@@ -67,3 +68,11 @@ export const alerts = pgTable(
   },
   (table) => [index('idx_alerts_active').on(table.active, table.symbolId, table.conditionHash)],
 )
+
+export const learningProgress = pgTable('learning_progress', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  completedLessons: text('completed_lessons').array().notNull().default(sql`'{}'`),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+})

@@ -11,5 +11,10 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+export const mfaVerifySchema = z.object({
+  code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
+})
+
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
+export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>

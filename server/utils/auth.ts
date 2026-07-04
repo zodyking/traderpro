@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
-import { eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
-import { users } from '../../db/schema'
+import { mfaMethods, users } from '../../db/schema'
 import { useDb } from './db'
 
 export async function requireUser(event: H3Event) {
@@ -81,4 +81,28 @@ export async function getActiveUserById(userId: string) {
 export async function listActiveUsers() {
   const db = useDb()
   return db.select().from(users).where(isNull(users.deletedAt))
+}
+
+export async function userHasVerifiedMfa(userId: string): Promise<boolean> {
+  const db = useDb()
+  const [row] = await db
+    .select({ id: mfaMethods.id })
+    .from(mfaMethods)
+    .where(and(eq(mfaMethods.userId, userId), isNotNull(mfaMethods.verifiedAt)))
+    .limit(1)
+
+  return !!row
+}
+
+export async function requireMfaPending(event: H3Event): Promise<string> {
+  const session = await getUserSession(event)
+
+  if (!session.mfaPending || !session.pendingUserId) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: 'MFA verification required',
+    })
+  }
+
+  return session.pendingUserId
 }

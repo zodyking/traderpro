@@ -6,6 +6,11 @@ declare module '#auth-utils' {
     experience: 'novice' | 'developing' | 'advanced' | 'system'
     uiMode: 'novice' | 'pro'
   }
+
+  interface UserSession {
+    mfaPending?: boolean
+    pendingUserId?: string
+  }
 }
 
 export {}

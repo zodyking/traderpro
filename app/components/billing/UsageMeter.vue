@@ -16,6 +16,7 @@ type UsageData = {
 const data = ref<UsageData | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const upgrading = ref(false)
 
 async function load() {
   loading.value = true
@@ -65,6 +66,26 @@ function barColor(used: number, limit: number): string {
   if (p >= 70) return 'bg-warn'
   return 'bg-accent'
 }
+
+async function upgrade() {
+  upgrading.value = true
+  error.value = null
+  try {
+    const session = await $fetch<{ url: string }>('/api/billing/checkout', {
+      method: 'POST',
+      body: { planId: 'starter' },
+    })
+    if (session.url) {
+      window.location.href = session.url
+    }
+  }
+  catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Failed to start checkout'
+  }
+  finally {
+    upgrading.value = false
+  }
+}
 </script>
 
 <template>
@@ -88,10 +109,19 @@ function barColor(used: number, limit: number): string {
     </p>
 
     <template v-else-if="data">
-      <div class="mb-4 flex items-center justify-between">
+      <div class="mb-4 flex items-center justify-between gap-3">
         <p class="text-sm text-text-secondary">
           Plan: <span class="font-medium text-text-primary">{{ data.plan.label }}</span>
         </p>
+        <UiBtn
+          v-if="data.plan.id === 'free'"
+          variant="secondary"
+          size="sm"
+          :loading="upgrading"
+          @click="upgrade"
+        >
+          Upgrade
+        </UiBtn>
       </div>
 
       <ul class="flex flex-col gap-4">

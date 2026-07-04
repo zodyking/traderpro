@@ -1,16 +1,8 @@
-import { randomUUID } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { join, extname } from 'node:path'
+import { extname } from 'node:path'
+import { generateUploadFilename, uploadFile } from '../../domains/storage/s3'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const MAX_BYTES = 10 * 1024 * 1024
-
-function saveLocally(buffer: Buffer, filename: string): string {
-  const uploadDir = join(process.cwd(), '.data', 'uploads')
-  mkdirSync(uploadDir, { recursive: true })
-  writeFileSync(join(uploadDir, filename), buffer)
-  return `/api/uploads/${filename}`
-}
 
 export default defineEventHandler(async (event) => {
   await requireUser(event)
@@ -35,8 +27,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const ext = extname(filePart.filename ?? '') || `.${contentType.split('/')[1]}`
-  const filename = `${randomUUID()}${ext}`
-  const url = saveLocally(filePart.data, filename)
+  const filename = generateUploadFilename(ext)
+  const result = await uploadFile(filePart.data, filename, contentType)
 
-  return { url }
+  return { url: result.url, storage: result.storage }
 })

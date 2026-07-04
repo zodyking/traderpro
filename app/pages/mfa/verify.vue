@@ -1,11 +1,10 @@
 <script setup lang="ts">
 definePageMeta({
   layout: 'default',
-  middleware: 'guest',
+  middleware: 'mfa-pending',
 })
 
-const email = ref('')
-const password = ref('')
+const code = ref('')
 const error = ref('')
 const loading = ref(false)
 
@@ -14,22 +13,15 @@ async function onSubmit() {
   loading.value = true
 
   try {
-    const result = await $fetch<{ mfaRequired?: boolean }>('/api/auth/login', {
+    await $fetch('/api/auth/mfa/verify', {
       method: 'POST',
-      body: {
-        email: email.value,
-        password: password.value,
-      },
+      body: { code: code.value },
     })
-    if (result.mfaRequired) {
-      await navigateTo('/mfa/verify')
-      return
-    }
     await navigateTo('/app')
   }
   catch (err: unknown) {
     const fetchError = err as { data?: { statusMessage?: string }, message?: string }
-    error.value = fetchError.data?.statusMessage ?? fetchError.message ?? 'Sign in failed.'
+    error.value = fetchError.data?.statusMessage ?? fetchError.message ?? 'Verification failed.'
   }
   finally {
     loading.value = false
@@ -45,40 +37,34 @@ async function onSubmit() {
           AxiomEdge
         </p>
         <h1 class="text-xl font-semibold text-text-primary">
-          Sign in
+          Two-factor authentication
         </h1>
         <p class="mt-1 text-sm text-text-secondary">
-          Evidence over instinct.
+          Enter the 6-digit code from your authenticator app.
         </p>
       </div>
 
       <UiPanel>
         <form class="flex flex-col gap-4" @submit.prevent="onSubmit">
           <UiInput
-            v-model="email"
-            label="Email"
-            type="email"
-            placeholder="you@firm.com"
-            autocomplete="email"
-          />
-          <UiInput
-            v-model="password"
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            autocomplete="current-password"
+            v-model="code"
+            label="Verification code"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="000000"
+            maxlength="6"
             :error="error"
           />
           <UiBtn type="submit" variant="primary" class="w-full" :loading="loading">
-            Sign in
+            Verify
           </UiBtn>
         </form>
       </UiPanel>
 
       <p class="mt-4 text-center text-sm text-text-muted">
-        No account?
-        <NuxtLink to="/register" class="text-accent hover:text-accent-hover">
-          Register
+        <NuxtLink to="/login" class="text-accent hover:text-accent-hover">
+          Back to sign in
         </NuxtLink>
       </p>
     </div>

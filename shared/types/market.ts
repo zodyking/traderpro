@@ -49,6 +49,8 @@ export type CandleEvent = {
 export type SymbolResult = SymbolKey & {
   label: string
   description?: string
+  /** TradingView market id, e.g. NASDAQ:AAPL */
+  tvMarketId?: string
 }
 
 export type CandleRequest = {
@@ -56,6 +58,8 @@ export type CandleRequest = {
   interval: CandleInterval
   from: string
   to: string
+  /** Resolved TradingView market id when known (from symbol search/meta). */
+  tvMarketId?: string
 }
 
 export type CandleSeries = {
@@ -67,6 +71,8 @@ export type CandleSeries = {
 export type LiveCandleRequest = {
   symbolId: string
   interval: CandleInterval
+  symbol?: SymbolKey
+  tvMarketId?: string
 }
 
 export type IndicatorRequest = {

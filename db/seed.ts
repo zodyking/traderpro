@@ -12,7 +12,7 @@ const DEMO_SYMBOLS = [
     ticker: 'AAPL',
     assetClass: 'stock',
     currency: 'USD',
-    meta: { description: 'Apple Inc.' },
+    meta: { description: 'Apple Inc.', tvMarketId: 'NASDAQ:AAPL' },
   },
   {
     id: '01930000-0000-7000-8000-000000000002',
@@ -21,7 +21,7 @@ const DEMO_SYMBOLS = [
     ticker: 'SPY',
     assetClass: 'stock',
     currency: 'USD',
-    meta: { description: 'SPDR S&P 500 ETF Trust' },
+    meta: { description: 'SPDR S&P 500 ETF Trust', tvMarketId: 'AMEX:SPY' },
   },
   {
     id: '01930000-0000-7000-8000-000000000003',
@@ -30,7 +30,7 @@ const DEMO_SYMBOLS = [
     ticker: 'BTCUSDT',
     assetClass: 'crypto',
     currency: 'USDT',
-    meta: { description: 'Bitcoin / Tether' },
+    meta: { description: 'Bitcoin / Tether', tvMarketId: 'BINANCE:BTCUSDT' },
   },
   {
     id: '01930000-0000-7000-8000-000000000004',
@@ -39,7 +39,7 @@ const DEMO_SYMBOLS = [
     ticker: 'MSFT',
     assetClass: 'stock',
     currency: 'USD',
-    meta: { description: 'Microsoft Corporation' },
+    meta: { description: 'Microsoft Corporation', tvMarketId: 'NASDAQ:MSFT' },
   },
   {
     id: '01930000-0000-7000-8000-000000000005',
@@ -48,7 +48,7 @@ const DEMO_SYMBOLS = [
     ticker: 'TSLA',
     assetClass: 'stock',
     currency: 'USD',
-    meta: { description: 'Tesla, Inc.' },
+    meta: { description: 'Tesla, Inc.', tvMarketId: 'NASDAQ:TSLA' },
   },
 ] as const
 

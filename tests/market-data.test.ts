@@ -288,7 +288,21 @@ describe('market ingester', () => {
     mockProvider.getHistoricalCandles.mockResolvedValue({
       symbolId: SYMBOL_ID,
       interval: '1h',
-      candles: [],
+      candles: [
+        {
+          symbolId: SYMBOL_ID,
+          interval: '1h',
+          time: '2024-01-01T00:00:00.000Z',
+          open: 200,
+          high: 201,
+          low: 199,
+          close: 200.5,
+          volume: 500,
+          source: 'csv',
+          ingestionTime: '2024-01-01T00:00:00.000Z',
+          qualityFlags: [],
+        },
+      ],
     })
 
     const insertChain = buildInsertChain()

@@ -17,20 +17,31 @@ function useTradingView() {
   return tradingViewInstance
 }
 
+export function resolveMarketDataProviderKind(
+  kind?: MarketDataProviderKind,
+): MarketDataProviderKind {
+  const envKind = process.env.MARKET_DATA_PROVIDER as MarketDataProviderKind | undefined
+
+  if (kind) return kind
+  if (envKind === 'mock' || envKind === 'tradingview') return envKind
+  if (process.env.NODE_ENV === 'test') return 'mock'
+
+  return 'tradingview'
+}
+
 export function createMarketDataProvider(
   kind?: MarketDataProviderKind,
 ): MarketDataProvider {
-  const envKind = process.env.MARKET_DATA_PROVIDER as MarketDataProviderKind | undefined
-  const resolved = kind ?? envKind ?? (process.env.NODE_ENV === 'test' ? 'mock' : 'tradingview')
+  const resolved = resolveMarketDataProviderKind(kind)
 
-  if (resolved === 'mock') return useMock()
-
-  try {
-    return useTradingView()
-  }
-  catch {
+  if (resolved === 'mock') {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[market-data] MARKET_DATA_PROVIDER=mock in production — charts use synthetic data. Set tradingview for live TradingView candles.')
+    }
     return useMock()
   }
+
+  return useTradingView()
 }
 
 export { createMockProvider, MockMarketDataProvider } from './mock-provider'

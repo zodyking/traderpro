@@ -1,6 +1,11 @@
 import { publishCandleEvent } from '../domains/market-data/service'
+import { resolveMarketDataProviderKind } from '../domains/market-data'
 
 export default defineNitroPlugin((nitroApp) => {
+  if (resolveMarketDataProviderKind() !== 'mock') {
+    return
+  }
+
   const timer = setInterval(async () => {
     try {
       const redis = useRedis()

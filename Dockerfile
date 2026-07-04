@@ -13,6 +13,9 @@ COPY . .
 
 RUN npm run build
 
+# Ensure TradingView client is available to the Nitro server bundle.
+RUN cd .output/server && npm install @mathieuc/tradingview@^3.5.2 --omit=dev --no-save
+
 # --- Production stage ---
 FROM node:22-bookworm-slim AS production
 

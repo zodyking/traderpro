@@ -18,6 +18,7 @@ export type SymbolRecord = {
   currency: string | null
   label: string
   description?: string
+  tvMarketId?: string
 }
 
 function cacheKey(parts: string[]) {
@@ -75,7 +76,10 @@ export async function searchSymbols(
           ticker: result.ticker,
           assetClass: result.assetClass,
           currency: result.currency ?? null,
-          meta: { description: result.description ?? result.label },
+          meta: {
+            description: result.description ?? result.label,
+            tvMarketId: result.tvMarketId,
+          },
         })
         .onConflictDoNothing()
         .returning()
@@ -93,6 +97,7 @@ export async function searchSymbols(
     }
 
     if (record) {
+      const meta = record.meta as { description?: string, tvMarketId?: string }
       records.push({
         id: record.id,
         providerId: record.providerId,
@@ -102,6 +107,7 @@ export async function searchSymbols(
         currency: record.currency,
         label: result.label,
         description: result.description,
+        tvMarketId: result.tvMarketId ?? meta.tvMarketId,
       })
     }
   }
@@ -122,7 +128,7 @@ export async function getSymbolById(id: string): Promise<SymbolRecord | null> {
   const [record] = await db.select().from(symbols).where(eq(symbols.id, id)).limit(1)
   if (!record) return null
 
-  const meta = record.meta as { description?: string }
+  const meta = record.meta as { description?: string, tvMarketId?: string }
   return {
     id: record.id,
     providerId: record.providerId,
@@ -132,6 +138,7 @@ export async function getSymbolById(id: string): Promise<SymbolRecord | null> {
     currency: record.currency,
     label: record.ticker,
     description: meta.description,
+    tvMarketId: meta.tvMarketId,
   }
 }
 
@@ -211,6 +218,8 @@ async function cacheCandlePayload(
   interval: CandleInterval,
   payload: ReturnType<typeof buildCandlePayload>,
 ) {
+  if (payload.candles.length === 0) return
+
   try {
     const redis = useRedis()
     await redis.setex(redisKey, CANDLE_TTL_SECONDS, JSON.stringify(payload))
@@ -300,6 +309,7 @@ export async function getCandles(input: {
     interval: input.interval,
     from: input.from,
     to: input.to,
+    tvMarketId: symbol.tvMarketId,
   })
 
   const payload = buildCandlePayload(
@@ -314,6 +324,13 @@ export async function getCandles(input: {
       volume: candle.volume ?? null,
     })),
   )
+
+  if (payload.candles.length === 0) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: 'No candle data available for this symbol',
+    })
+  }
 
   // Persist fetched candles to DB so historical data accumulates over time.
   // Conflicts on PK (symbol_id, interval, time) are silently ignored.
@@ -356,18 +373,20 @@ export async function getProviderStatuses(): Promise<
   const health = await provider.healthCheck()
 
   const status = health.status
+  const label = health.provider === 'tradingview' ? 'TradingView' : health.provider.toUpperCase()
+
   await db
     .insert(providers)
-    .values({ id: health.provider, label: 'TradingView', status })
+    .values({ id: health.provider, label, status })
     .onConflictDoUpdate({
       target: providers.id,
-      set: { status },
+      set: { status, label },
     })
 
   return [
     {
       id: health.provider,
-      label: 'TradingView',
+      label,
       status: health.status,
       message: health.message,
     },

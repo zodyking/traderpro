@@ -79,6 +79,7 @@ watch(
     }))
 
     series.setData(chartCandles)
+    chart?.timeScale().fitContent()
     applyMarkers()
   },
   { deep: true },
@@ -165,6 +166,7 @@ async function loadCandles(symbolId: string) {
     }))
 
     series?.setData(chartCandles)
+    chart?.timeScale().fitContent()
     applyMarkers()
 
     unsubscribe?.()
@@ -222,7 +224,10 @@ async function loadCandles(symbolId: string) {
 function initChart() {
   if (!containerRef.value || chart) return
 
+  const width = Math.max(containerRef.value.clientWidth, 320)
+
   chart = createChart(containerRef.value, {
+    width,
     height: props.height,
     layout: {
       background: { type: ColorType.Solid, color: '#0A0E17' },
@@ -284,6 +289,7 @@ watch(
   async ([symbolId]) => {
     if (!import.meta.client || !symbolId) {
       candles.value = []
+      series?.setData([])
       return
     }
     await nextTick()
@@ -329,6 +335,14 @@ onBeforeUnmount(() => {
       :style="{ height: `${height}px` }"
     >
       Select a symbol to load the chart.
+    </div>
+    <div
+      v-else-if="!loading && candles.length === 0"
+      data-testid="chart-panel"
+      class="flex items-center justify-center px-4 text-center text-sm text-text-muted"
+      :style="{ height: `${height}px` }"
+    >
+      No candle data yet. Check that TradingView market data is enabled.
     </div>
     <div
       v-else

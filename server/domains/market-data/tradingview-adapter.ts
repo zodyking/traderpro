@@ -59,6 +59,9 @@ const TV_TYPE_TO_ASSET: Record<string, AssetClass> = {
   dr: 'stock',
 }
 
+const CANDLE_FETCH_TIMEOUT_MS = 25_000
+const CANDLE_FETCH_RANGE = 500
+
 function mapAssetClass(type: string): AssetClass {
   return TV_TYPE_TO_ASSET[type] ?? 'stock'
 }
@@ -72,8 +75,8 @@ function toSymbolKey(result: TvSearchResult): SymbolKey {
   }
 }
 
-function toMarketId(key: SymbolKey): string {
-  return `${key.exchange.toUpperCase()}:${key.ticker}`
+export function toTradingViewMarketId(key: SymbolKey): string {
+  return `${key.exchange.toUpperCase()}:${key.ticker.toUpperCase()}`
 }
 
 function mapPeriods(
@@ -130,15 +133,99 @@ type TvClient = {
   end: () => void
 }
 
-async function loadTradingView() {
-  return require('@mathieuc/tradingview') as {
-    searchMarketV3: (
-      search: string,
-      filter?: string,
-      offset?: number,
-    ) => Promise<TvSearchResult[]>
-    Client: new (options?: { token?: string, signature?: string }) => TvClient
+type TradingViewModule = {
+  searchMarketV3: (
+    search: string,
+    filter?: string,
+    offset?: number,
+  ) => Promise<TvSearchResult[]>
+  Client: new (options?: { token?: string, signature?: string }) => TvClient
+}
+
+async function loadTradingView(): Promise<TradingViewModule> {
+  return require('@mathieuc/tradingview') as TradingViewModule
+}
+
+function pickSearchMatch(results: TvSearchResult[], key: SymbolKey): TvSearchResult | undefined {
+  const ticker = key.ticker.toUpperCase()
+  const exchange = key.exchange.toUpperCase()
+
+  return results.find((result) => result.symbol.toUpperCase() === ticker
+    && result.exchange.toUpperCase() === exchange)
+    ?? results.find((result) => result.id.toUpperCase() === `${exchange}:${ticker}`)
+    ?? results.find((result) => result.symbol.toUpperCase() === ticker)
+}
+
+export async function resolveTradingViewMarketId(
+  key: SymbolKey,
+  tvMarketId?: string,
+): Promise<string> {
+  if (tvMarketId) return tvMarketId
+
+  const constructed = toTradingViewMarketId(key)
+
+  try {
+    const TradingView = await loadTradingView()
+    const results = await TradingView.searchMarketV3(key.ticker)
+    const match = pickSearchMatch(results, key)
+    return match?.id ?? constructed
   }
+  catch {
+    return constructed
+  }
+}
+
+export async function fetchTradingViewPeriods(
+  marketId: string,
+  interval: CandleInterval,
+  range = CANDLE_FETCH_RANGE,
+): Promise<TvPeriod[]> {
+  const TradingView = await loadTradingView()
+  const client = new TradingView.Client()
+  const timeframe = INTERVAL_TO_TV[interval]
+
+  try {
+    return await new Promise<TvPeriod[]>((resolve, reject) => {
+      const chart = new client.Session.Chart()
+      const timeout = setTimeout(() => {
+        chart.delete()
+        reject(new Error('TradingView candle fetch timeout'))
+      }, CANDLE_FETCH_TIMEOUT_MS)
+
+      chart.onError((...args) => {
+        clearTimeout(timeout)
+        chart.delete()
+        reject(new Error(args.map(String).join(' ') || 'TradingView chart error'))
+      })
+
+      chart.onUpdate(() => {
+        if (chart.periods.length > 0) {
+          clearTimeout(timeout)
+          resolve([...chart.periods])
+          chart.delete()
+        }
+      })
+
+      chart.setMarket(marketId, { timeframe, range })
+    })
+  }
+  finally {
+    client.end()
+  }
+}
+
+function filterCandlesByRange(candles: Candle[], from: string, to: string): Candle[] {
+  const fromMs = new Date(from).getTime()
+  const toMs = new Date(to).getTime()
+
+  const filtered = candles.filter((candle) => {
+    const ts = new Date(candle.time).getTime()
+    return ts >= fromMs && ts <= toMs
+  })
+
+  if (filtered.length > 0) return filtered
+  if (candles.length === 0) return candles
+  return candles.slice(-300)
 }
 
 export class TradingViewAdapter implements MarketDataProvider {
@@ -180,6 +267,7 @@ export class TradingViewAdapter implements MarketDataProvider {
           ...key,
           label: result.symbol,
           description: result.description,
+          tvMarketId: result.id,
         }
       })
     }
@@ -192,59 +280,34 @@ export class TradingViewAdapter implements MarketDataProvider {
 
   async getHistoricalCandles(req: CandleRequest): Promise<CandleSeries> {
     const symbolId = `${req.symbol.provider}:${req.symbol.exchange}:${req.symbol.ticker}`
+
     try {
-      const TradingView = await loadTradingView()
-      const client = new TradingView.Client()
-      const timeframe = INTERVAL_TO_TV[req.interval]
-      const marketId = toMarketId(req.symbol)
-
-      const periods = await new Promise<TvPeriod[]>((resolve, reject) => {
-        const chart = new client.Session.Chart()
-        const timeout = setTimeout(() => {
-          chart.delete()
-          client.end()
-          reject(new Error('TradingView candle fetch timeout'))
-        }, 20_000)
-
-        chart.onError((...args) => {
-          clearTimeout(timeout)
-          chart.delete()
-          client.end()
-          reject(new Error(args.map(String).join(' ')))
-        })
-
-        chart.onUpdate(() => {
-          if (chart.periods.length > 0) {
-            clearTimeout(timeout)
-            const data = [...chart.periods]
-            chart.delete()
-            client.end()
-            resolve(data)
-          }
-        })
-
-        chart.setMarket(marketId, { timeframe, range: 500 })
-      })
-
+      const marketId = await resolveTradingViewMarketId(req.symbol, req.tvMarketId)
+      const periods = await fetchTradingViewPeriods(marketId, req.interval)
       const candles = mapPeriods(periods, symbolId, req.interval)
-      const from = new Date(req.from).getTime()
-      const to = new Date(req.to).getTime()
-      const filtered = candles.filter((candle) => {
-        const ts = new Date(candle.time).getTime()
-        return ts >= from && ts <= to
-      })
+      const ranged = filterCandlesByRange(candles, req.from, req.to)
+
+      if (ranged.length === 0) {
+        throw new Error(`TradingView returned no candles for ${marketId}`)
+      }
 
       this.lastStatus = 'healthy'
+      this.lastError = undefined
       return {
         symbolId,
         interval: req.interval,
-        candles: filtered.length > 0 ? filtered : candles.slice(-300),
+        candles: ranged,
       }
     }
     catch (error) {
       this.lastStatus = 'delayed'
       this.lastError = error instanceof Error ? error.message : 'TradingView candles failed'
-      return this.fallback.getHistoricalCandles(req)
+      const fallback = await this.fallback.getHistoricalCandles(req)
+      if (fallback.candles.length > 0) {
+        return fallback
+      }
+
+      throw error instanceof Error ? error : new Error('TradingView candles failed')
     }
   }
 
@@ -267,13 +330,13 @@ export class TradingViewAdapter implements MarketDataProvider {
       }
 
       for (const symbol of symbols) {
-        const marketId = toMarketId(symbol)
+        const marketId = await resolveTradingViewMarketId(symbol)
         const market = new quoteSession.Market(marketId)
-        const symbolId = `${symbol.provider}:${symbol.exchange}:${symbol.ticker}`
+        const resolvedSymbolId = `${symbol.provider}:${symbol.exchange}:${symbol.ticker}`
 
         market.onData((data: TvQuoteData) => {
           queue.push({
-            symbolId,
+            symbolId: resolvedSymbolId,
             time: new Date().toISOString(),
             bid: data.bid,
             ask: data.ask,
@@ -318,7 +381,77 @@ export class TradingViewAdapter implements MarketDataProvider {
   }
 
   async *subscribeCandles(req: LiveCandleRequest): AsyncIterable<CandleEvent> {
-    yield* this.fallback.subscribeCandles(req)
+    if (!req.symbol) {
+      yield* this.fallback.subscribeCandles(req)
+      return
+    }
+
+    const marketId = await resolveTradingViewMarketId(req.symbol, req.tvMarketId)
+    const timeframe = INTERVAL_TO_TV[req.interval]
+    let client: TvClient | null = null
+    let chart: TvChart | null = null
+
+    try {
+      const TradingView = await loadTradingView()
+      client = new TradingView.Client()
+      chart = new client.Session.Chart()
+
+      const queue: CandleEvent[] = []
+      let notify: (() => void) | null = null
+      let lastEmittedTime: string | null = null
+
+      const wake = () => {
+        notify?.()
+        notify = null
+      }
+
+      chart.onError(() => {
+        wake()
+      })
+
+      chart.onUpdate(() => {
+        const latest = chart?.periods.at(-1)
+        if (!latest) return
+
+        const candle = mapPeriods([latest], req.symbolId, req.interval)[0]
+        if (!candle || candle.time === lastEmittedTime) return
+
+        lastEmittedTime = candle.time
+        queue.push({
+          symbolId: req.symbolId,
+          interval: req.interval,
+          candle,
+          forming: true,
+        })
+        wake()
+      })
+
+      chart.setMarket(marketId, { timeframe, range: 5 })
+      this.lastStatus = 'healthy'
+
+      while (true) {
+        if (queue.length > 0) {
+          yield queue.shift()!
+          continue
+        }
+
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            notify = resolve
+          }),
+          new Promise<void>(resolve => setTimeout(resolve, 5_000)),
+        ])
+      }
+    }
+    catch (error) {
+      this.lastStatus = 'delayed'
+      this.lastError = error instanceof Error ? error.message : 'TradingView live candles failed'
+      yield* this.fallback.subscribeCandles(req)
+    }
+    finally {
+      chart?.delete()
+      client?.end()
+    }
   }
 
   async getIndicatorValues(req: IndicatorRequest): Promise<IndicatorSeries> {
@@ -330,6 +463,11 @@ export class TradingViewAdapter implements MarketDataProvider {
       const TradingView = await loadTradingView()
       const started = Date.now()
       await TradingView.searchMarketV3('AAPL')
+      const periods = await fetchTradingViewPeriods('NASDAQ:AAPL', '1h', 5)
+      if (periods.length === 0) {
+        throw new Error('TradingView candle stream unavailable')
+      }
+
       this.lastStatus = 'healthy'
       this.lastError = undefined
       return {
@@ -337,7 +475,7 @@ export class TradingViewAdapter implements MarketDataProvider {
         status: 'healthy',
         latencyMs: Date.now() - started,
         lastEventAt: new Date().toISOString(),
-        message: 'TradingView search reachable',
+        message: 'TradingView search and candles reachable',
       }
     }
     catch (error) {

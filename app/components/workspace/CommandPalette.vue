@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { kind: 'nav', key: 'nav-chart', label: 'Chart', description: 'Live price chart workspace', to: '/app/chart' },
   { kind: 'nav', key: 'nav-strategy', label: 'Strategy Lab', description: 'Build and version rule-based strategies', to: '/app/strategy' },
   { kind: 'nav', key: 'nav-backtest', label: 'Backtest', description: 'Run and review backtest reports', to: '/app/backtest' },
+  { kind: 'nav', key: 'nav-scanner', label: 'Scanner', description: 'Run alert scans and view history', to: '/app/scanner' },
   { kind: 'nav', key: 'nav-journal', label: 'Journal', description: 'Trade journal and AI review', to: '/app/journal' },
   { kind: 'nav', key: 'nav-learning', label: 'Learning Path', description: 'Skill ladder and lessons', to: '/app/learning' },
   { kind: 'nav', key: 'nav-settings', label: 'Settings', description: 'Account and workspace settings', to: '/app/settings' },

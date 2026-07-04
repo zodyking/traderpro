@@ -35,6 +35,18 @@ export type MonteCarloResult = {
   maxDrawdown: { p5: number; p50: number; p95: number }
 }
 
+export type SweepResult = {
+  stopLossValues: number[]
+  results: Array<{
+    stopLossPct: number
+    metrics: BacktestMetricsSummary
+  }>
+  best: {
+    stopLossPct: number
+    totalReturn: number | null
+  } | null
+}
+
 export type BacktestMetrics = BacktestMetricsSummary
 export type { BacktestMetricsSummary }
 
@@ -137,6 +149,7 @@ export const useBacktestStore = defineStore('backtest', () => {
   const researchLoading = ref(false)
   const walkForwardResult = ref<WalkForwardResult | null>(null)
   const monteCarloResult = ref<MonteCarloResult | null>(null)
+  const sweepResult = ref<SweepResult | null>(null)
   const error = ref<string | null>(null)
 
   let unsubscribeProgress: (() => void) | null = null
@@ -157,6 +170,7 @@ export const useBacktestStore = defineStore('backtest', () => {
     equity.value = []
     walkForwardResult.value = null
     monteCarloResult.value = null
+    sweepResult.value = null
   }
 
   function stopTracking() {
@@ -389,6 +403,50 @@ export const useBacktestStore = defineStore('backtest', () => {
     }
   }
 
+  async function runParameterSweep() {
+    const run = activeRun.value
+    if (!run?.strategyVersionId || !run.config) return
+
+    const config = run.config as {
+      symbols?: string[]
+      dateRange?: { from: string; to: string }
+      capital?: number
+      interval?: string
+      realism?: Record<string, unknown>
+    }
+
+    if (!config.symbols?.length || !config.dateRange) {
+      error.value = 'Backtest config is missing symbols or date range'
+      return
+    }
+
+    researchLoading.value = true
+    error.value = null
+
+    try {
+      sweepResult.value = await $fetch<SweepResult>('/api/backtests/sweep', {
+        method: 'POST',
+        body: {
+          strategyVersionId: run.strategyVersionId,
+          symbolIds: config.symbols,
+          dateRange: config.dateRange,
+          capital: config.capital ?? DEFAULT_CAPITAL,
+          interval: config.interval ?? '1d',
+          stopLossValues: [1, 2, 3, 5, 7, 10],
+          realism: config.realism,
+        },
+      })
+      return sweepResult.value
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Parameter sweep failed'
+      throw err
+    }
+    finally {
+      researchLoading.value = false
+    }
+  }
+
   function clearActiveRun() {
     stopTracking()
     activeRun.value = null
@@ -408,6 +466,7 @@ export const useBacktestStore = defineStore('backtest', () => {
     researchLoading,
     walkForwardResult,
     monteCarloResult,
+    sweepResult,
     error,
     isRunning,
     isComplete,
@@ -418,6 +477,7 @@ export const useBacktestStore = defineStore('backtest', () => {
     cancelActiveBacktest,
     runWalkForward,
     runMonteCarlo,
+    runParameterSweep,
     clearActiveRun,
     stopTracking,
   }

@@ -34,6 +34,10 @@ async function handleMonteCarlo() {
   await backtestStore.runMonteCarlo(runId)
 }
 
+async function handleParameterSweep() {
+  await backtestStore.runParameterSweep()
+}
+
 watch(
   runId,
   (id) => {
@@ -148,7 +152,7 @@ onBeforeUnmount(() => {
       >
         <UiPanel title="Advanced Research">
           <p class="mb-4 text-sm text-text-secondary">
-            Validate robustness with walk-forward folds and Monte Carlo resampling of trade outcomes.
+            Validate robustness with walk-forward folds, Monte Carlo resampling, and stop-loss parameter sweeps.
           </p>
 
           <div class="flex flex-wrap gap-3">
@@ -165,6 +169,13 @@ onBeforeUnmount(() => {
               @click="handleMonteCarlo"
             >
               Run Monte Carlo
+            </UiBtn>
+            <UiBtn
+              variant="secondary"
+              :disabled="backtestStore.researchLoading"
+              @click="handleParameterSweep"
+            >
+              Run Parameter Sweep
             </UiBtn>
           </div>
 
@@ -255,6 +266,71 @@ onBeforeUnmount(() => {
                   · P95 {{ pct(backtestStore.monteCarloResult.maxDrawdown.p95) }}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div
+            v-if="backtestStore.sweepResult"
+            class="mt-5 rounded-lg border border-border-hair bg-bg-surface p-4"
+          >
+            <h3 class="text-sm font-medium text-text-primary">
+              Parameter Sweep (stop-loss %)
+            </h3>
+            <p
+              v-if="backtestStore.sweepResult.best"
+              class="mt-1 text-sm text-text-secondary"
+            >
+              Best: {{ backtestStore.sweepResult.best.stopLossPct }}% stop
+              · Return {{ pct(backtestStore.sweepResult.best.totalReturn) }}
+            </p>
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead>
+                  <tr class="text-text-secondary">
+                    <th class="pb-2 pr-4 font-medium">
+                      Stop %
+                    </th>
+                    <th class="pb-2 pr-4 font-medium">
+                      Return
+                    </th>
+                    <th class="pb-2 pr-4 font-medium">
+                      Max DD
+                    </th>
+                    <th class="pb-2 pr-4 font-medium">
+                      Sharpe
+                    </th>
+                    <th class="pb-2 font-medium">
+                      Trades
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in backtestStore.sweepResult.results"
+                    :key="row.stopLossPct"
+                    class="border-t border-border-hair text-text-primary"
+                    :class="backtestStore.sweepResult.best?.stopLossPct === row.stopLossPct
+                      ? 'bg-accent/5'
+                      : ''"
+                  >
+                    <td class="py-2 pr-4 font-medium">
+                      {{ row.stopLossPct }}%
+                    </td>
+                    <td class="py-2 pr-4">
+                      {{ pct(row.metrics.totalReturn) }}
+                    </td>
+                    <td class="py-2 pr-4">
+                      {{ pct(row.metrics.maxDrawdown) }}
+                    </td>
+                    <td class="py-2 pr-4">
+                      {{ row.metrics.sharpe?.toFixed(2) ?? '—' }}
+                    </td>
+                    <td class="py-2">
+                      {{ row.metrics.tradeCount }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </UiPanel>

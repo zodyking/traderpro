@@ -4,6 +4,7 @@ import { requireUser, toSessionUser } from '../utils/auth'
 import { useDb, schema } from '../utils/db'
 
 const patchMeSchema = z.object({
+  displayName: z.string().min(1).max(120).optional(),
   experience: z.enum(['novice', 'developing', 'advanced']).optional(),
   uiMode: z.enum(['novice', 'pro']).optional(),
 })
@@ -17,6 +18,7 @@ export default defineEventHandler(async (event) => {
   const [updated] = await db
     .update(schema.users)
     .set({
+      ...(body.displayName ? { displayName: body.displayName } : {}),
       ...(body.experience ? { experience: body.experience } : {}),
       ...(body.uiMode ? { uiMode: body.uiMode } : {}),
     })

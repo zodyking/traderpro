@@ -6,10 +6,18 @@ definePageMeta({
 
 const store = useBrokerStore()
 const { theme, setTheme } = useTheme()
+const { user, clear: clearSession } = useUserSession()
 
 const activeTab = ref<'broker' | 'account' | 'api-keys'>('broker')
 
+const displayName = ref('')
+const displayNameSaving = ref(false)
+const displayNameError = ref<string | null>(null)
+const displayNameSuccess = ref(false)
+const signingOut = ref(false)
+
 onMounted(async () => {
+  displayName.value = user.value?.displayName ?? ''
   await Promise.all([
     store.fetchConnections(),
     store.fetchPerformance(),
@@ -17,10 +25,57 @@ onMounted(async () => {
   ])
 })
 
+watch(user, (next) => {
+  if (next?.displayName && !displayNameSaving.value) {
+    displayName.value = next.displayName
+  }
+})
+
 function handleImported() {
   store.fetchConnections()
   store.fetchPerformance(store.selectedAccountId ?? undefined)
   store.fetchExecutions(store.selectedAccountId ? { accountId: store.selectedAccountId } : {})
+}
+
+async function saveDisplayName() {
+  const trimmed = displayName.value.trim()
+  if (!trimmed) {
+    displayNameError.value = 'Display name is required.'
+    return
+  }
+
+  displayNameSaving.value = true
+  displayNameError.value = null
+  displayNameSuccess.value = false
+
+  try {
+    await $fetch('/api/me', {
+      method: 'PATCH',
+      body: { displayName: trimmed },
+    })
+    displayNameSuccess.value = true
+    setTimeout(() => {
+      displayNameSuccess.value = false
+    }, 2500)
+  }
+  catch (err: unknown) {
+    displayNameError.value = err instanceof Error ? err.message : 'Failed to update display name'
+  }
+  finally {
+    displayNameSaving.value = false
+  }
+}
+
+async function signOut() {
+  signingOut.value = true
+  try {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+    await clearSession()
+    await navigateTo('/login')
+  }
+  finally {
+    signingOut.value = false
+  }
 }
 </script>
 
@@ -200,10 +255,76 @@ function handleImported() {
             </div>
           </UiPanel>
 
-          <UiPanel title="Account Settings">
-            <p class="text-sm text-text-secondary">
-              Account management settings coming soon.
-            </p>
+          <UiPanel title="Profile">
+            <div class="flex flex-col gap-4">
+              <div>
+                <label
+                  for="display-name"
+                  class="text-sm font-medium text-text-primary"
+                >
+                  Display name
+                </label>
+                <p class="mt-0.5 text-xs text-text-muted">
+                  Shown across the app and in your session.
+                </p>
+                <div class="mt-2 flex gap-2">
+                  <UiInput
+                    id="display-name"
+                    v-model="displayName"
+                    placeholder="Your name"
+                    class="flex-1"
+                    @keydown.enter="saveDisplayName"
+                  />
+                  <UiBtn
+                    :loading="displayNameSaving"
+                    @click="saveDisplayName"
+                  >
+                    Save
+                  </UiBtn>
+                </div>
+                <p
+                  v-if="displayNameError"
+                  class="mt-2 text-xs text-bear"
+                >
+                  {{ displayNameError }}
+                </p>
+                <p
+                  v-else-if="displayNameSuccess"
+                  class="mt-2 text-xs text-bull"
+                >
+                  Display name updated.
+                </p>
+              </div>
+
+              <div class="border-t border-border-hair pt-4">
+                <p class="text-sm font-medium text-text-primary">
+                  Email
+                </p>
+                <p class="mt-1 text-sm text-text-secondary">
+                  {{ user?.email }}
+                </p>
+              </div>
+            </div>
+          </UiPanel>
+
+          <UiPanel title="Session">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-sm font-medium text-text-primary">
+                  Sign out
+                </p>
+                <p class="mt-0.5 text-xs text-text-muted">
+                  End your session on this device.
+                </p>
+              </div>
+              <UiBtn
+                variant="secondary"
+                :loading="signingOut"
+                @click="signOut"
+              >
+                Sign out
+              </UiBtn>
+            </div>
           </UiPanel>
 
           <div class="mt-4">

@@ -97,7 +97,7 @@ export interface AIReviewPacket {
     duration: string
   }
   dataQuality: { source: string; gaps: number; warnings: string[] }
-  requestedReviewType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market'
+  requestedReviewType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market' | 'assistant'
 }
 
 export type AIReviewResult = {

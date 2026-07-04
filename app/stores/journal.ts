@@ -37,10 +37,13 @@ export type JournalEntry = {
   createdAt: string
 }
 
+export type JournalCoachingMode = 'trade' | 'risk' | 'assistant'
+
 export type AIReview = {
   id: string
   status: string
   createdAt: string
+  reviewType?: string | null
   result?: {
     observations?: string[]
     risks?: string[]
@@ -197,16 +200,35 @@ export const useJournalStore = defineStore('journal', () => {
     }
   }
 
-  async function requestReview(entryId: string) {
+  async function requestReview(entryId: string, mode: JournalCoachingMode = 'trade') {
     reviewLoading.value[entryId] = true
     try {
-      const raw = await $fetch<Record<string, unknown>>(`/api/journal/${entryId}/review`, {
-        method: 'POST',
-      })
+      let raw: Record<string, unknown>
+
+      if (mode === 'trade') {
+        raw = await $fetch<Record<string, unknown>>('/api/ai/review/trade', {
+          method: 'POST',
+          body: { targetId: entryId },
+        })
+      }
+      else if (mode === 'risk') {
+        raw = await $fetch<Record<string, unknown>>('/api/ai/review/risk', {
+          method: 'POST',
+          body: { targetId: entryId },
+        })
+      }
+      else {
+        raw = await $fetch<Record<string, unknown>>('/api/ai/reviews', {
+          method: 'POST',
+          body: { targetType: 'trade', targetId: entryId, reviewType: 'assistant' },
+        })
+      }
+
       const review: AIReview = {
         id: String(raw.id),
         status: String(raw.status),
-        createdAt: String(raw.createdAt),
+        createdAt: raw.createdAt != null ? String(raw.createdAt) : new Date().toISOString(),
+        reviewType: mode === 'assistant' ? 'assistant' : mode,
         result: raw.result as AIReview['result'] ?? null,
       }
       if (!reviewsByEntryId.value[entryId]) {
@@ -223,11 +245,14 @@ export const useJournalStore = defineStore('journal', () => {
   async function fetchReviews(entryId: string) {
     reviewLoading.value[entryId] = true
     try {
-      const data = await $fetch<Record<string, unknown>[]>(`/api/journal/${entryId}/review`)
-      reviewsByEntryId.value[entryId] = data.map(raw => ({
+      const data = await $fetch<{ reviews: Record<string, unknown>[] }>('/api/ai/reviews', {
+        query: { targetId: entryId },
+      })
+      reviewsByEntryId.value[entryId] = data.reviews.map(raw => ({
         id: String(raw.id),
         status: String(raw.status),
         createdAt: String(raw.createdAt),
+        reviewType: raw.reviewType != null ? String(raw.reviewType) : String(raw.targetType ?? 'trade'),
         result: raw.result as AIReview['result'] ?? null,
       }))
     }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { JournalEntry } from '~/stores/journal'
+import type { JournalCoachingMode, JournalEntry } from '~/stores/journal'
 
 definePageMeta({
   layout: 'app',
@@ -80,9 +80,9 @@ function closeReview() {
   reviewEntryId.value = null
 }
 
-async function handleRequestReview() {
+async function handleRequestReview(mode: JournalCoachingMode) {
   if (!reviewEntryId.value) return
-  await journalStore.requestReview(reviewEntryId.value)
+  await journalStore.requestReview(reviewEntryId.value, mode)
 }
 
 const reviews = computed(() =>

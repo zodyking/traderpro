@@ -12,6 +12,7 @@ const AUTH_RATE_LIMITS: Record<string, { limit: number, windowMs: number }> = {
 
 const AI_REVIEW_POST_PATHS = new Set([
   '/api/ai/review/trade',
+  '/api/ai/review/risk',
   '/api/ai/review/strategy',
   '/api/ai/reviews',
 ])

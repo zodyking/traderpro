@@ -81,6 +81,12 @@ describe('getSystemPrompt - mode-specific prompts', () => {
     const prompt = getSystemPrompt('lesson')
     expect(prompt).toContain('trading educator')
   })
+
+  it('returns journal assistant prompt for assistant mode', () => {
+    const prompt = getSystemPrompt('assistant')
+    expect(prompt).toContain('journal assistant')
+    expect(prompt).toContain('JSON')
+  })
 })
 
 describe('parseAIResult - additional edge cases', () => {

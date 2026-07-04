@@ -1,14 +1,14 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { backtestMetrics, backtestRuns, executions, journalEntries, strategies, strategyVersions, symbols, users } from '../../../db/schema'
 import type { AIReviewPacket } from '../../../shared/types/ai'
-import type { AIReviewTargetType } from '../../../shared/schemas/ai'
+import type { AIReviewTargetType, AIReviewType } from '../../../shared/schemas/ai'
 import { findLessonById } from '#shared/lessons'
 import { useDb } from '../../utils/db'
 
 interface PacketBuildOptions {
   targetType: AIReviewTargetType
   targetId: string
-  reviewType?: AIReviewTargetType
+  reviewType?: AIReviewType
 }
 
 function parseNumeric(value: string | null | undefined): number | undefined {

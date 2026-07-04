@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { aiReviews } from '../../../db/schema'
-import type { AIReviewTargetType } from '../../../shared/schemas/ai'
+import type { AIReviewTargetType, AIReviewType } from '../../../shared/schemas/ai'
 import { checkAiCredits, incrementUsage } from '../billing/entitlements'
 import { useDb } from '../../utils/db'
 import { getAIProvider } from './factory'
@@ -15,7 +15,7 @@ export function isAiAsyncMode() {
 
 export async function requestReview(
   userId: string,
-  input: { targetType: AIReviewTargetType; targetId: string; reviewType?: AIReviewTargetType },
+  input: { targetType: AIReviewTargetType; targetId: string; reviewType?: AIReviewType },
 ) {
   const usage = await checkAiCredits(userId)
   if (!usage.allowed) {
@@ -178,6 +178,7 @@ function formatReview(review: typeof aiReviews.$inferSelect) {
     id: review.id,
     targetType: review.targetType,
     targetId: review.targetId,
+    reviewType: review.packet.requestedReviewType,
     status: review.status,
     model: review.model,
     result: review.result,

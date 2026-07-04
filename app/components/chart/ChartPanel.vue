@@ -273,6 +273,7 @@ onBeforeUnmount(() => {
 
     <div
       v-if="!symbolId"
+      data-testid="chart-panel"
       class="flex items-center justify-center text-sm text-text-muted"
       :style="{ height: `${height}px` }"
     >
@@ -281,6 +282,7 @@ onBeforeUnmount(() => {
     <div
       v-else
       ref="containerRef"
+      data-testid="chart-panel"
       class="w-full"
       :style="{ height: `${height}px` }"
       role="img"

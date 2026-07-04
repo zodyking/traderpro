@@ -35,3 +35,67 @@ jobs:
 
       - name: Unit tests
         run: npm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: quality
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: axiomedge
+          POSTGRES_PASSWORD: axiomedge
+          POSTGRES_DB: axiomedge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://axiomedge:axiomedge@localhost:5432/axiomedge
+      REDIS_URL: redis://localhost:6379
+      NUXT_SESSION_PASSWORD: changeme-this-must-be-at-least-32-chars-long
+      MARKET_DATA_PROVIDER: mock
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run database migrations
+        run: npm run db:migrate
+
+      - name: Seed database
+        run: npm run db:seed
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+

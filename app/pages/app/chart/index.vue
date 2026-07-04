@@ -183,6 +183,14 @@ function setIntervalValue(value: typeof intervals[number]) {
           :interval="workspace.chartInterval ?? '1h'"
           :overlays="overlays"
         />
+        <template #fallback>
+          <div
+            data-testid="chart-panel"
+            class="flex h-[480px] items-center justify-center rounded-lg border border-border-hair bg-bg-surface text-sm text-text-muted"
+          >
+            Loading chart…
+          </div>
+        </template>
       </ClientOnly>
 
         <div

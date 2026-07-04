@@ -1,5 +1,13 @@
 import { z } from 'zod'
 
+export const realismConfigSchema = z.object({
+  slippagePct: z.number().optional(),
+  feePct: z.number().optional(),
+  fillModel: z.enum(['next_open', 'close_confirmation']).optional(),
+})
+
+export type RealismConfig = z.infer<typeof realismConfigSchema>
+
 export const backtestDateRangeSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
@@ -12,7 +20,7 @@ export const backtestCreateSchema = z.object({
   dateRange: backtestDateRangeSchema.optional(),
   capital: z.number().positive().default(10_000),
   interval: z.enum(['1m', '5m', '15m', '1h', '4h', '1d', '1w']).default('1d'),
-  realism: z.record(z.string(), z.unknown()).optional(),
+  realism: realismConfigSchema.optional(),
 }).superRefine((value, ctx) => {
   if (!value.symbolId && (!value.symbolIds || value.symbolIds.length === 0)) {
     ctx.addIssue({

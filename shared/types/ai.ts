@@ -85,8 +85,12 @@ export interface AIReviewPacket {
     openedAt?: string
     closedAt?: string
   }
+  marketContext?: {
+    symbol: string
+    exchange?: string
+  }
   dataQuality: { source: string; gaps: number; warnings: string[] }
-  requestedReviewType: 'strategy' | 'trade' | 'risk' | 'lesson'
+  requestedReviewType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market'
 }
 
 export type AIReviewResult = {

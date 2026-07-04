@@ -24,6 +24,7 @@ export type SimulateInput = {
   startingCapital: number
   slippagePct?: number
   feePct?: number
+  fillModel?: 'next_open' | 'close_confirmation'
 }
 
 type OpenPosition = {
@@ -31,7 +32,9 @@ type OpenPosition = {
   entryPrice: number
   qty: number
   stopPrice?: number
+  initialStopPrice?: number
   targetPrice?: number
+  highWaterMark: number
   signalSnapshot: Record<string, unknown>
   riskPerShare: number
 }
@@ -80,6 +83,90 @@ function resolveStopPrice(
     }
     default:
       return undefined
+  }
+}
+
+function resolveTrailingStopPrice(
+  highWaterMark: number,
+  riskModel: RiskModel,
+  ctx: CandleContext,
+  barIndex: number,
+): number | undefined {
+  const trailing = riskModel.trailingStop
+  if (!trailing) return undefined
+
+  switch (trailing.type) {
+    case 'percent':
+      return highWaterMark * (1 - trailing.value / 100)
+    case 'atr': {
+      const series = atr(ctx.high, ctx.low, ctx.close, 14)
+      const atrValue = series[barIndex]
+      if (!Number.isFinite(atrValue)) return undefined
+      return highWaterMark - atrValue! * trailing.value
+    }
+    default:
+      return undefined
+  }
+}
+
+function ratchetTrailingStop(
+  position: OpenPosition,
+  riskModel: RiskModel,
+  ctx: CandleContext,
+  barIndex: number,
+  candle: SimulatorCandle,
+): void {
+  position.highWaterMark = Math.max(position.highWaterMark, candle.high)
+  const trailingLevel = resolveTrailingStopPrice(position.highWaterMark, riskModel, ctx, barIndex)
+  if (trailingLevel === undefined) return
+
+  position.stopPrice = position.stopPrice !== undefined
+    ? Math.max(position.stopPrice, trailingLevel)
+    : trailingLevel
+}
+
+function stopExitReason(position: OpenPosition): SimulatedTrade['exitReason'] {
+  if (
+    position.initialStopPrice !== undefined
+    && position.stopPrice !== undefined
+    && position.stopPrice > position.initialStopPrice
+  ) {
+    return 'trailing_stop'
+  }
+  return 'stop_loss'
+}
+
+function openPosition(
+  candle: SimulatorCandle,
+  fillPrice: number,
+  riskModel: RiskModel,
+  ctx: CandleContext,
+  barIndex: number,
+  cash: number,
+  feePct: number,
+  signalSnapshot: Record<string, unknown>,
+): { position: OpenPosition; cost: number } | null {
+  const stopPrice = resolveStopPrice(fillPrice, riskModel, ctx, barIndex)
+  const targetPrice = resolveTargetPrice(fillPrice, stopPrice, riskModel)
+  const qty = resolvePositionQty(cash, fillPrice, riskModel, stopPrice)
+  const cost = fillPrice * qty
+  const fees = tradeFee(cost, feePct)
+
+  if (qty <= 0 || cost + fees > cash) return null
+
+  return {
+    position: {
+      entryTime: new Date(candle.time),
+      entryPrice: fillPrice,
+      qty,
+      stopPrice,
+      initialStopPrice: stopPrice,
+      targetPrice,
+      highWaterMark: Math.max(fillPrice, candle.high),
+      signalSnapshot,
+      riskPerShare: stopPrice !== undefined ? fillPrice - stopPrice : 0,
+    },
+    cost: cost + fees,
   }
 }
 
@@ -176,6 +263,7 @@ export function simulateLongOnly(input: SimulateInput): SimulationResult {
     startingCapital,
     slippagePct = DEFAULT_SLIPPAGE_PCT,
     feePct = DEFAULT_FEE_PCT,
+    fillModel = 'next_open',
   } = input
 
   if (candles.length === 0) {
@@ -215,7 +303,7 @@ export function simulateLongOnly(input: SimulateInput): SimulationResult {
   for (let i = 0; i < candles.length; i++) {
     const candle = candles[i]!
 
-    if (pendingExit && i > pendingExit.barIndex && position) {
+    if (fillModel === 'next_open' && pendingExit && i > pendingExit.barIndex && position) {
       const { trade, proceeds } = closeTrade(
         position,
         new Date(candle.time),
@@ -231,37 +319,35 @@ export function simulateLongOnly(input: SimulateInput): SimulationResult {
       pendingExit = null
     }
 
-    if (pendingEntry && i > pendingEntry.barIndex && !position) {
+    if (fillModel === 'next_open' && pendingEntry && i > pendingEntry.barIndex && !position) {
       const entryFill = applyEntrySlippage(candle.open, slippagePct)
-      const stopPrice = resolveStopPrice(entryFill, riskModel, ctx, i)
-      const targetPrice = resolveTargetPrice(entryFill, stopPrice, riskModel)
-      const qty = resolvePositionQty(cash, entryFill, riskModel, stopPrice)
-      const cost = entryFill * qty
-      const fees = tradeFee(cost, feePct)
-
-      if (qty > 0 && cost + fees <= cash) {
-        cash -= cost + fees
-        position = {
-          entryTime: new Date(candle.time),
-          entryPrice: entryFill,
-          qty,
-          stopPrice,
-          targetPrice,
-          signalSnapshot: { entrySignals: pendingEntry.signals },
-          riskPerShare: stopPrice !== undefined ? entryFill - stopPrice : 0,
-        }
+      const opened = openPosition(
+        candle,
+        entryFill,
+        riskModel,
+        ctx,
+        i,
+        cash,
+        feePct,
+        { entrySignals: pendingEntry.signals },
+      )
+      if (opened) {
+        cash -= opened.cost
+        position = opened.position
       }
       pendingEntry = null
     }
 
     if (position) {
+      ratchetTrailingStop(position, riskModel, ctx, i, candle)
+
       if (position.stopPrice !== undefined && candle.low <= position.stopPrice) {
         const stopFill = Math.min(candle.open, position.stopPrice)
         const { trade, proceeds } = closeTrade(
           position,
           new Date(candle.time),
           stopFill,
-          'stop_loss',
+          stopExitReason(position),
           feePct,
           slippagePct,
         )
@@ -294,11 +380,46 @@ export function simulateLongOnly(input: SimulateInput): SimulationResult {
     const exitHits = signals.filter(id => exitSignalIds.has(id))
 
     if (!position && !pendingEntry && entryHits.length > 0) {
-      pendingEntry = { barIndex: i, signals: entryHits }
+      if (fillModel === 'close_confirmation') {
+        const entryFill = applyEntrySlippage(candle.close, slippagePct)
+        const opened = openPosition(
+          candle,
+          entryFill,
+          riskModel,
+          ctx,
+          i,
+          cash,
+          feePct,
+          { entrySignals: entryHits },
+        )
+        if (opened) {
+          cash -= opened.cost
+          position = opened.position
+        }
+      }
+      else {
+        pendingEntry = { barIndex: i, signals: entryHits }
+      }
     }
 
     if (position && !pendingExit && exitHits.length > 0) {
-      pendingExit = { barIndex: i, signals: exitHits }
+      if (fillModel === 'close_confirmation') {
+        const { trade, proceeds } = closeTrade(
+          position,
+          new Date(candle.time),
+          candle.close,
+          'signal',
+          feePct,
+          slippagePct,
+        )
+        trade.symbolId = symbolId
+        trades.push(trade)
+        cash += proceeds
+        position = null
+      }
+      else {
+        pendingExit = { barIndex: i, signals: exitHits }
+      }
     }
 
     markEquity(i)

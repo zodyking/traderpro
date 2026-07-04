@@ -34,7 +34,7 @@ export const aiReviews = pgTable(
   (table) => [
     check(
       'ai_reviews_target_type_check',
-      sql`${table.targetType} IN ('strategy', 'trade', 'risk', 'lesson')`,
+      sql`${table.targetType} IN ('strategy', 'trade', 'risk', 'lesson', 'market')`,
     ),
     check(
       'ai_reviews_status_check',

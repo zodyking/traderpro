@@ -95,3 +95,56 @@ export type AttributionData = {
   byWeekday: AttributionRow[]
   bySession: AttributionRow[]
 }
+
+export type MistakeReportRow = {
+  mistake: string
+  count: number
+  entryCount: number
+  totalPnl: number | null
+  avgPnl: number | null
+}
+
+export type MistakeReportData = {
+  totalEntries: number
+  entriesWithMistakes: number
+  mistakes: MistakeReportRow[]
+}
+
+export type PlanVsExecutionExecution = {
+  id: string
+  rawSymbol: string
+  side: 'buy' | 'sell'
+  qty: number
+  price: number
+  executedAt: string
+}
+
+export type PlanVsExecutionRow = {
+  entryId: string
+  symbolTicker: string | null
+  setupTag: string | null
+  side: string | null
+  openedAt: string | null
+  closedAt: string | null
+  planned: {
+    entry?: number
+    stop?: number
+    target?: number
+    size?: number
+    thesis?: string
+  }
+  actual: {
+    entry?: number
+    exit?: number
+    size?: number
+  }
+  executionIds: string[]
+  executions: PlanVsExecutionExecution[]
+  entryDelta: number | null
+  exitDelta: number | null
+  sizeDelta: number | null
+}
+
+export type PlanVsExecutionData = {
+  rows: PlanVsExecutionRow[]
+}

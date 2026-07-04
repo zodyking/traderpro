@@ -1,4 +1,4 @@
-import { and, asc, between, desc, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, asc, between, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import {
   brokerAccounts,
@@ -13,7 +13,9 @@ import type {
   BrokerExecutionsQuery,
   BrokerImportInput,
   CalendarPnlData,
+  MistakeReportData,
   PerformanceSummary,
+  PlanVsExecutionData,
 } from '../../../shared/schemas/broker'
 import { useDb } from '../../utils/db'
 import { parseBrokerCsv } from './csv-parser'
@@ -561,5 +563,182 @@ export async function getAttribution(userId: string, accountId?: string): Promis
   const bySession = computeAttributionRows(trades, t => sessionLabel(t.exitedAt))
 
   return { bySymbol, bySetupTag, byWeekday, bySession }
+}
+
+type JournalEntryRow = typeof journalEntries.$inferSelect
+
+function computeJournalEntryPnl(
+  entry: Pick<JournalEntryRow, 'side' | 'actual' | 'executionIds'>,
+  execById: Map<string, { id: string, rawSymbol: string, side: string, qty: number, price: number, fees: number, executedAt: Date }>,
+): number | null {
+  const { entry: entryPrice, exit, size } = entry.actual ?? {}
+  if (entryPrice != null && exit != null && size != null) {
+    const multiplier = entry.side === 'short' ? -1 : 1
+    return Math.round((exit - entryPrice) * size * multiplier * 100) / 100
+  }
+
+  if (entry.executionIds.length === 0) return null
+
+  const linked = entry.executionIds
+    .map(id => execById.get(id))
+    .filter((row): row is NonNullable<typeof row> => row != null)
+
+  if (linked.length === 0) return null
+
+  const trades = computeFifoPnlWithDates(linked)
+  if (trades.length === 0) return null
+
+  return Math.round(trades.reduce((sum, trade) => sum + trade.pnl, 0) * 100) / 100
+}
+
+export async function getMistakeReport(userId: string): Promise<MistakeReportData> {
+  const db = useDb()
+
+  const entries = await db
+    .select()
+    .from(journalEntries)
+    .where(eq(journalEntries.userId, userId))
+
+  const allExecIds = [...new Set(entries.flatMap(entry => entry.executionIds))]
+  const execById = new Map<string, { id: string, rawSymbol: string, side: string, qty: number, price: number, fees: number, executedAt: Date }>()
+
+  if (allExecIds.length > 0) {
+    const execRows = await db
+      .select()
+      .from(executions)
+      .where(and(eq(executions.userId, userId), inArray(executions.id, allExecIds)))
+
+    for (const row of execRows) {
+      execById.set(row.id, {
+        id: row.id,
+        rawSymbol: row.rawSymbol,
+        side: row.side,
+        qty: row.qty,
+        price: row.price,
+        fees: Number.parseFloat(row.fees),
+        executedAt: row.executedAt,
+      })
+    }
+  }
+
+  const mistakeMap = new Map<string, { count: number, entryIds: Set<string>, pnls: number[] }>()
+  let entriesWithMistakes = 0
+
+  for (const entry of entries) {
+    if (entry.mistakes.length === 0) continue
+    entriesWithMistakes++
+
+    const pnl = computeJournalEntryPnl(entry, execById)
+
+    for (const mistake of entry.mistakes) {
+      const label = mistake.trim()
+      if (!label) continue
+
+      const bucket = mistakeMap.get(label) ?? { count: 0, entryIds: new Set<string>(), pnls: [] }
+      bucket.count++
+      bucket.entryIds.add(entry.id)
+      if (pnl != null) bucket.pnls.push(pnl)
+      mistakeMap.set(label, bucket)
+    }
+  }
+
+  const mistakes = [...mistakeMap.entries()]
+    .map(([mistake, bucket]) => {
+      const totalPnl = bucket.pnls.length > 0
+        ? Math.round(bucket.pnls.reduce((sum, value) => sum + value, 0) * 100) / 100
+        : null
+      const avgPnl = bucket.pnls.length > 0 && totalPnl != null
+        ? Math.round((totalPnl / bucket.pnls.length) * 100) / 100
+        : null
+
+      return {
+        mistake,
+        count: bucket.count,
+        entryCount: bucket.entryIds.size,
+        totalPnl,
+        avgPnl,
+      }
+    })
+    .sort((a, b) => b.count - a.count || Math.abs(b.totalPnl ?? 0) - Math.abs(a.totalPnl ?? 0))
+
+  return {
+    totalEntries: entries.length,
+    entriesWithMistakes,
+    mistakes,
+  }
+}
+
+export async function getPlanVsExecution(userId: string): Promise<PlanVsExecutionData> {
+  const db = useDb()
+
+  const rows = await db
+    .select({ entry: journalEntries, symbolTicker: symbols.ticker })
+    .from(journalEntries)
+    .leftJoin(symbols, eq(journalEntries.symbolId, symbols.id))
+    .where(eq(journalEntries.userId, userId))
+    .orderBy(desc(journalEntries.openedAt), desc(journalEntries.createdAt))
+
+  const allExecIds = [...new Set(rows.flatMap(row => row.entry.executionIds))]
+  const execById = new Map<string, typeof executions.$inferSelect>()
+
+  if (allExecIds.length > 0) {
+    const execRows = await db
+      .select()
+      .from(executions)
+      .where(and(eq(executions.userId, userId), inArray(executions.id, allExecIds)))
+
+    for (const row of execRows) {
+      execById.set(row.id, row)
+    }
+  }
+
+  const result: PlanVsExecutionData['rows'] = []
+
+  for (const { entry, symbolTicker } of rows) {
+    const hasPlanned = Object.keys(entry.planned ?? {}).length > 0
+    const hasActual = Object.keys(entry.actual ?? {}).length > 0
+    const hasExecutions = entry.executionIds.length > 0
+    if (!hasPlanned && !hasActual && !hasExecutions) continue
+
+    const linkedExecutions = entry.executionIds
+      .map(id => execById.get(id))
+      .filter((row): row is NonNullable<typeof row> => row != null)
+      .map(row => ({
+        id: row.id,
+        rawSymbol: row.rawSymbol,
+        side: row.side as 'buy' | 'sell',
+        qty: row.qty,
+        price: row.price,
+        executedAt: row.executedAt.toISOString(),
+      }))
+      .sort((a, b) => a.executedAt.localeCompare(b.executedAt))
+
+    const planned = entry.planned ?? {}
+    const actual = entry.actual ?? {}
+
+    result.push({
+      entryId: entry.id,
+      symbolTicker: symbolTicker ?? null,
+      setupTag: entry.setupTag,
+      side: entry.side,
+      openedAt: entry.openedAt?.toISOString() ?? null,
+      closedAt: entry.closedAt?.toISOString() ?? null,
+      planned,
+      actual,
+      executionIds: entry.executionIds,
+      executions: linkedExecutions,
+      entryDelta: planned.entry != null && actual.entry != null
+        ? Math.round((actual.entry - planned.entry) * 100) / 100
+        : null,
+      exitDelta: planned.target != null && actual.exit != null
+        ? Math.round((actual.exit - planned.target) * 100) / 100
+        : null,
+      sizeDelta: planned.size != null && actual.size != null
+        ? Math.round((actual.size - planned.size) * 100) / 100
+        : null,
+    })
+  }
+
+  return { rows: result }
 }
 

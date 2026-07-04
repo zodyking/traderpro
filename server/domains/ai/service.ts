@@ -44,7 +44,7 @@ export async function requestReview(
   try {
     const prompt = buildPrompt(packet)
     const completion = await provider.completeReview(prompt, {
-      systemPrompt: getSystemPrompt(),
+      systemPrompt: getSystemPrompt(packet.requestedReviewType),
       maxTokens: 1024,
       temperature: 0.3,
     })

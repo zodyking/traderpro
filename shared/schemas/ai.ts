@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const aiReviewTargetTypeSchema = z.enum(['strategy', 'trade', 'risk', 'lesson'])
+export const aiReviewTargetTypeSchema = z.enum(['strategy', 'trade', 'risk', 'lesson', 'market'])
 
 export const aiReviewCreateSchema = z.object({
   targetType: aiReviewTargetTypeSchema,

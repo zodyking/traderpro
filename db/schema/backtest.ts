@@ -12,6 +12,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core'
+import type { RealismConfig } from '../../shared/schemas/backtest'
 import { users } from './identity'
 import { symbols } from './market'
 import { strategyVersions } from './strategy'
@@ -20,7 +21,7 @@ export type BacktestRunConfig = {
   symbols: string[]
   dateRange: { from: string; to: string }
   capital: number
-  realism?: Record<string, unknown>
+  realism?: RealismConfig
 }
 
 export type BacktestDataSnapshot = {

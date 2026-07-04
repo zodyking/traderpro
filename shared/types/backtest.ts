@@ -72,7 +72,7 @@ export type SimulatedTrade = {
   qty: number
   pnl?: number
   rMultiple?: number
-  exitReason?: 'signal' | 'stop_loss' | 'take_profit' | 'end_of_data'
+  exitReason?: 'signal' | 'stop_loss' | 'trailing_stop' | 'take_profit' | 'end_of_data'
   signalSnapshot?: Record<string, unknown>
 }
 

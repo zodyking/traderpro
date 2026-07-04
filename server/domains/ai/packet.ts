@@ -1,5 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm'
-import { backtestMetrics, backtestRuns, executions, journalEntries, strategies, strategyVersions, users } from '../../../db/schema'
+import { backtestMetrics, backtestRuns, executions, journalEntries, strategies, strategyVersions, symbols, users } from '../../../db/schema'
 import type { AIReviewPacket } from '../../../shared/types/ai'
 import type { AIReviewTargetType } from '../../../shared/schemas/ai'
 import { useDb } from '../../utils/db'
@@ -139,16 +139,19 @@ export async function buildAIReviewPacket(
     }
   }
 
-  if (targetType === 'trade') {
-    const [entry] = await db
-      .select()
+  if (targetType === 'trade' || targetType === 'risk' || targetType === 'lesson' || targetType === 'market') {
+    const [row] = await db
+      .select({ entry: journalEntries, symbolTicker: symbols.ticker, exchange: symbols.exchange })
       .from(journalEntries)
+      .leftJoin(symbols, eq(journalEntries.symbolId, symbols.id))
       .where(and(eq(journalEntries.id, targetId), eq(journalEntries.userId, userId)))
       .limit(1)
 
-    if (!entry) {
+    if (!row) {
       throw createError({ statusCode: 404, statusMessage: 'Journal entry not found' })
     }
+
+    const entry = row.entry
 
     packet.tradeEntry = {
       id: entry.id,
@@ -163,9 +166,16 @@ export async function buildAIReviewPacket(
       closedAt: entry.closedAt?.toISOString(),
     }
     packet.dataQuality = { source: 'journal', gaps: 0, warnings: [] }
+
+    if (targetType === 'market' && row.symbolTicker) {
+      packet.marketContext = {
+        symbol: row.symbolTicker,
+        exchange: row.exchange ?? undefined,
+      }
+    }
   }
 
-  if (targetType === 'trade' || targetType === 'risk') {
+  if (targetType === 'trade' || targetType === 'risk' || targetType === 'market') {
     // Load recent broker executions
     const recentExecs = await db
       .select()

@@ -8,9 +8,10 @@ import {
   equityPoints,
 } from '../../../db/schema'
 import type { BacktestRunConfig } from '../../../db/schema/backtest'
-import type { BacktestCreateInput } from '../../../shared/schemas/backtest'
+import type { BacktestCreateInput, RealismConfig } from '../../../shared/schemas/backtest'
 import type { BacktestProgressEvent, EquityPoint, SimulatedTrade } from '../../../shared/types/backtest'
 import type { CandleInterval } from '../../../shared/types/market'
+import type { ExecutionAssumptions } from '../../../shared/types/strategy'
 import { getCandles } from '../market-data/service'
 import { getStrategyVersion } from '../strategy/service'
 import { useDb } from '../../utils/db'
@@ -19,6 +20,29 @@ import { calculateMetrics } from './metrics'
 import { checkUsage, incrementUsage } from '../billing/entitlements'
 import { enqueueBacktestJob } from './queue'
 import { simulateLongOnly, type SimulatorCandle } from './simulator'
+
+function resolveSimulationSettings(
+  configRealism?: RealismConfig,
+  assumptions?: ExecutionAssumptions,
+) {
+  let slippagePct = configRealism?.slippagePct
+  let feePct = configRealism?.feePct
+  let fillModel = configRealism?.fillModel
+
+  if (slippagePct == null && assumptions?.slippage?.type === 'percent') {
+    slippagePct = assumptions.slippage.value
+  }
+  if (feePct == null && assumptions?.fees?.type === 'percent') {
+    feePct = assumptions.fees.value
+  }
+  if (fillModel == null && assumptions?.fillModel) {
+    if (assumptions.fillModel === 'next_open' || assumptions.fillModel === 'close_confirmation') {
+      fillModel = assumptions.fillModel
+    }
+  }
+
+  return { slippagePct, feePct, fillModel }
+}
 
 function hashCandles(candles: SimulatorCandle[]): string {
   const payload = candles.map(candle => `${candle.time}:${candle.close}`).join('|')
@@ -237,12 +261,15 @@ export async function runBacktest(runId: string) {
 
       await publishProgress(runId, { pct: 40, stage: 'simulating' })
 
+      const simulationSettings = resolveSimulationSettings(config.realism, version.assumptions)
+
       const result = simulateLongOnly({
         symbolId,
         candles,
         rules: version.rules,
         riskModel: version.riskModel,
         startingCapital: capitalPerSymbol,
+        ...simulationSettings,
       })
 
       allTrades.push(...result.trades)

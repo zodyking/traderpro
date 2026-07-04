@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AttributionRow } from '#shared/schemas/broker'
+import type { AttributionRow, PlanVsExecutionRow } from '#shared/schemas/broker'
 
 definePageMeta({
   layout: 'app',
@@ -8,7 +8,7 @@ definePageMeta({
 
 const store = useBrokerStore()
 
-type Tab = 'equity' | 'calendar' | 'attribution'
+type Tab = 'equity' | 'calendar' | 'attribution' | 'mistakes' | 'plan-execution'
 const activeTab = ref<Tab>('equity')
 
 onMounted(async () => {
@@ -17,6 +17,8 @@ onMounted(async () => {
     store.fetchExecutions(store.selectedAccountId ? { accountId: store.selectedAccountId } : {}),
     store.fetchCalendar(store.selectedAccountId ?? undefined),
     store.fetchAttribution(store.selectedAccountId ?? undefined),
+    store.fetchMistakes(),
+    store.fetchPlanExecution(),
   ])
 })
 
@@ -65,6 +67,8 @@ const TABS: { id: Tab, label: string }[] = [
   { id: 'equity', label: 'Equity' },
   { id: 'calendar', label: 'Calendar P&L' },
   { id: 'attribution', label: 'Attribution' },
+  { id: 'mistakes', label: 'Mistakes' },
+  { id: 'plan-execution', label: 'Plan vs Execution' },
 ]
 
 function fmtPnl(n: number): string {
@@ -79,6 +83,16 @@ function pnlClass(n: number) {
 
 function attributionRows(rows: AttributionRow[] | undefined) {
   return rows ?? []
+}
+
+function fmtDelta(n: number | null | undefined): string {
+  if (n == null) return '—'
+  const sign = n > 0 ? '+' : ''
+  return `${sign}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function planExecutionRows(): PlanVsExecutionRow[] {
+  return store.planExecution?.rows ?? []
 }
 </script>
 
@@ -377,6 +391,142 @@ function attributionRows(rows: AttributionRow[] | undefined) {
               Import execution data and link journal entries with setup tags to see attribution breakdowns.
             </p>
           </div>
+        </template>
+      </div>
+
+      <!-- ─── Mistakes Tab ─── -->
+      <div v-else-if="activeTab === 'mistakes'" class="mx-auto max-w-4xl">
+        <template v-if="store.mistakesLoading">
+          <UiSkeleton class="h-[280px] w-full" />
+        </template>
+
+        <template v-else-if="store.mistakesError">
+          <div class="rounded-lg border border-bear/30 bg-bear/10 px-4 py-3 text-sm text-bear">
+            {{ store.mistakesError }}
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="mb-4 flex flex-wrap gap-4 text-sm text-text-secondary">
+            <span>{{ store.mistakeReport?.totalEntries ?? 0 }} journal entries</span>
+            <span>{{ store.mistakeReport?.entriesWithMistakes ?? 0 }} with mistakes tagged</span>
+          </div>
+
+          <UiPanel title="Mistake Frequency & P&L Impact">
+            <template v-if="!store.mistakeReport?.mistakes.length">
+              <p class="py-8 text-center text-sm text-text-muted">
+                No mistakes logged yet. Tag mistakes in journal entries to see patterns and P&amp;L correlation.
+              </p>
+            </template>
+            <table v-else class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-border-hair text-left text-xs text-text-muted">
+                  <th class="pb-2 font-medium">Mistake</th>
+                  <th class="pb-2 text-right font-medium">Count</th>
+                  <th class="pb-2 text-right font-medium">Entries</th>
+                  <th class="pb-2 text-right font-medium">Total P&L</th>
+                  <th class="pb-2 text-right font-medium">Avg P&L</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in store.mistakeReport!.mistakes"
+                  :key="row.mistake"
+                  class="border-b border-border-hair/50 last:border-0"
+                >
+                  <td class="py-2 font-medium text-text-primary">{{ row.mistake }}</td>
+                  <td class="py-2 text-right font-mono text-text-secondary">{{ row.count }}</td>
+                  <td class="py-2 text-right font-mono text-text-secondary">{{ row.entryCount }}</td>
+                  <td
+                    class="py-2 text-right font-mono"
+                    :class="row.totalPnl != null ? pnlClass(row.totalPnl) : 'text-text-muted'"
+                  >
+                    {{ row.totalPnl != null ? fmtPnl(row.totalPnl) : '—' }}
+                  </td>
+                  <td
+                    class="py-2 text-right font-mono"
+                    :class="row.avgPnl != null ? pnlClass(row.avgPnl) : 'text-text-muted'"
+                  >
+                    {{ row.avgPnl != null ? fmtPnl(row.avgPnl) : '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </UiPanel>
+        </template>
+      </div>
+
+      <!-- ─── Plan vs Execution Tab ─── -->
+      <div v-else-if="activeTab === 'plan-execution'" class="mx-auto max-w-6xl">
+        <template v-if="store.planExecutionLoading">
+          <UiSkeleton class="h-[320px] w-full" />
+        </template>
+
+        <template v-else-if="store.planExecutionError">
+          <div class="rounded-lg border border-bear/30 bg-bear/10 px-4 py-3 text-sm text-bear">
+            {{ store.planExecutionError }}
+          </div>
+        </template>
+
+        <template v-else>
+          <UiPanel title="Planned vs Actual Execution">
+            <template v-if="!planExecutionRows().length">
+              <p class="py-8 text-center text-sm text-text-muted">
+                No journal entries with planned levels or linked executions.
+              </p>
+            </template>
+            <div v-else class="overflow-x-auto">
+              <table class="w-full min-w-[880px] text-sm">
+                <thead>
+                  <tr class="border-b border-border-hair text-left text-xs text-text-muted">
+                    <th class="pb-2 pr-3 font-medium">Symbol</th>
+                    <th class="pb-2 pr-3 font-medium">Setup</th>
+                    <th class="pb-2 pr-3 text-right font-medium">Plan Entry</th>
+                    <th class="pb-2 pr-3 text-right font-medium">Actual Entry</th>
+                    <th class="pb-2 pr-3 text-right font-medium">Δ Entry</th>
+                    <th class="pb-2 pr-3 text-right font-medium">Plan Target</th>
+                    <th class="pb-2 pr-3 text-right font-medium">Actual Exit</th>
+                    <th class="pb-2 pr-3 text-right font-medium">Executions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in planExecutionRows()"
+                    :key="row.entryId"
+                    class="border-b border-border-hair/50 last:border-0"
+                  >
+                    <td class="py-2 pr-3 font-mono text-text-primary">
+                      {{ row.symbolTicker ?? '—' }}
+                    </td>
+                    <td class="py-2 pr-3 text-text-secondary">
+                      {{ row.setupTag ?? '—' }}
+                    </td>
+                    <td class="py-2 pr-3 text-right font-mono text-text-secondary">
+                      {{ row.planned.entry ?? '—' }}
+                    </td>
+                    <td class="py-2 pr-3 text-right font-mono text-text-secondary">
+                      {{ row.actual.entry ?? '—' }}
+                    </td>
+                    <td
+                      class="py-2 pr-3 text-right font-mono"
+                      :class="row.entryDelta != null ? pnlClass(-row.entryDelta) : 'text-text-muted'"
+                    >
+                      {{ fmtDelta(row.entryDelta) }}
+                    </td>
+                    <td class="py-2 pr-3 text-right font-mono text-text-secondary">
+                      {{ row.planned.target ?? '—' }}
+                    </td>
+                    <td class="py-2 pr-3 text-right font-mono text-text-secondary">
+                      {{ row.actual.exit ?? '—' }}
+                    </td>
+                    <td class="py-2 pr-3 text-right font-mono text-text-muted">
+                      {{ row.executions.length }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </UiPanel>
         </template>
       </div>
     </div>

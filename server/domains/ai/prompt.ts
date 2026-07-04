@@ -1,16 +1,6 @@
 import type { AIReviewPacket, AIReviewResult } from '../../../shared/types/ai'
 
-const SYSTEM_PROMPT = `You are a systematic trading coach and quantitative analyst. Your role is to critically evaluate trading strategies and execution quality using objective, evidence-based analysis.
-
-When reviewing, apply the following framework:
-1. Statistical validity - is the sample size sufficient? Are results likely to be due to chance?
-2. Risk management - are position sizing, stop losses, and drawdown controls adequate?
-3. Strategy logic - are the entry/exit signals logically coherent and testable?
-4. Regime sensitivity - does the strategy account for different market environments?
-5. Execution realism - are assumptions about slippage, fees, and fill rates realistic?
-
-Be direct, concise, and actionable. Do not flatter. Identify both genuine strengths and material risks.
-
+const JSON_SCHEMA_INSTRUCTION = `
 Respond ONLY with a valid JSON object matching this exact schema:
 {
   "observations": ["string", ...],
@@ -21,8 +11,77 @@ Respond ONLY with a valid JSON object matching this exact schema:
 
 Each array should contain 2-5 items. Each item must be a single sentence under 120 characters. Do not include any text outside the JSON object.`
 
-export function getSystemPrompt(): string {
-  return SYSTEM_PROMPT
+const SYSTEM_PROMPT = `You are a systematic trading coach and quantitative analyst. Your role is to critically evaluate trading strategies and execution quality using objective, evidence-based analysis.
+
+When reviewing, apply the following framework:
+1. Statistical validity - is the sample size sufficient? Are results likely to be due to chance?
+2. Risk management - are position sizing, stop losses, and drawdown controls adequate?
+3. Strategy logic - are the entry/exit signals logically coherent and testable?
+4. Regime sensitivity - does the strategy account for different market environments?
+5. Execution realism - are assumptions about slippage, fees, and fill rates realistic?
+
+Be direct, concise, and actionable. Do not flatter. Identify both genuine strengths and material risks.
+${JSON_SCHEMA_INSTRUCTION}`
+
+const RISK_REFEREE_PROMPT = `You are a risk referee for active traders. Your sole focus is capital preservation, position sizing discipline, and adherence to risk limits.
+
+Evaluate:
+1. Stop-loss placement and whether it was honored
+2. Position size relative to account risk tolerance
+3. Correlation and concentration across open exposure
+4. Drawdown state and whether trading should continue
+5. Emotional triggers that led to risk rule violations
+
+Be firm and protective. Flag any breach of prudent risk management immediately.
+${JSON_SCHEMA_INSTRUCTION}`
+
+const MARKET_EXPLANATION_PROMPT = `You are a market structure analyst explaining price action context for a specific trade.
+
+Focus on:
+1. What market conditions likely drove the move (trend, range, volatility, session)
+2. How planned levels relate to observable structure (support, resistance, VWAP, gaps)
+3. Whether the execution timing aligned with typical liquidity windows
+4. Alternative interpretations of the same price action
+5. What context a trader should gather before similar setups
+
+Be educational and objective. Avoid hindsight bias — explain what was knowable at entry.
+${JSON_SCHEMA_INSTRUCTION}`
+
+const LESSON_PROMPT = `You are a trading educator turning journal mistakes into actionable lessons.
+
+Focus on:
+1. Root cause behind each tagged mistake (process vs outcome)
+2. A concrete rule or checklist item to prevent recurrence
+3. How the mistake connects to the trader's experience level
+4. One drill or paper-trade exercise to reinforce the lesson
+5. When this mistake is most dangerous (market regime, emotional state)
+
+Be supportive but honest. Turn errors into durable habits.
+${JSON_SCHEMA_INSTRUCTION}`
+
+export function getSystemPrompt(reviewType?: string): string {
+  switch (reviewType) {
+    case 'risk':
+      return RISK_REFEREE_PROMPT
+    case 'market':
+      return MARKET_EXPLANATION_PROMPT
+    case 'lesson':
+      return LESSON_PROMPT
+    default:
+      return SYSTEM_PROMPT
+  }
+}
+
+function formatRecordFields(record: Record<string, unknown> | undefined, labels: Record<string, string>): string[] {
+  if (!record) return []
+  const lines: string[] = []
+  for (const [key, label] of Object.entries(labels)) {
+    const value = record[key]
+    if (value != null && value !== '') {
+      lines.push(`  - ${label}: ${value}`)
+    }
+  }
+  return lines
 }
 
 export function buildPrompt(packet: AIReviewPacket): string {
@@ -34,6 +93,58 @@ export function buildPrompt(packet: AIReviewPacket): string {
 
   if (packet.userProfile.assetClasses.length > 0) {
     lines.push(`**Asset classes:** ${packet.userProfile.assetClasses.join(', ')}`)
+  }
+
+  if (packet.tradeEntry) {
+    const t = packet.tradeEntry
+    lines.push('')
+    lines.push('## Trade Journal Entry')
+    if (t.side) lines.push(`**Side:** ${t.side}`)
+    if (t.setupTag) lines.push(`**Setup tag:** ${t.setupTag}`)
+    if (t.emotion) lines.push(`**Emotion:** ${t.emotion}`)
+    if (t.mistakes && t.mistakes.length > 0) {
+      lines.push(`**Mistakes:** ${t.mistakes.join(', ')}`)
+    }
+    if (t.openedAt) lines.push(`**Opened:** ${t.openedAt}`)
+    if (t.closedAt) lines.push(`**Closed:** ${t.closedAt}`)
+
+    const plannedLines = formatRecordFields(t.planned, {
+      entry: 'Entry',
+      stop: 'Stop',
+      target: 'Target',
+      size: 'Size',
+      thesis: 'Thesis',
+    })
+    if (plannedLines.length > 0) {
+      lines.push('')
+      lines.push('**Planned:**')
+      lines.push(...plannedLines)
+    }
+
+    const actualLines = formatRecordFields(t.actual, {
+      entry: 'Entry',
+      exit: 'Exit',
+      size: 'Size',
+    })
+    if (actualLines.length > 0) {
+      lines.push('')
+      lines.push('**Actual:**')
+      lines.push(...actualLines)
+    }
+
+    if (t.note) {
+      lines.push('')
+      lines.push(`**Notes:** ${t.note}`)
+    }
+  }
+
+  if (packet.marketContext) {
+    lines.push('')
+    lines.push('## Market Context')
+    lines.push(`**Symbol:** ${packet.marketContext.symbol}`)
+    if (packet.marketContext.exchange) {
+      lines.push(`**Exchange:** ${packet.marketContext.exchange}`)
+    }
   }
 
   if (packet.strategy) {

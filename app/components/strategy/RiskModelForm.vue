@@ -15,6 +15,11 @@ const takeProfitTypes = [
   { value: 'r_multiple', label: 'R multiple' },
 ] as const
 
+const trailingStopTypes = [
+  { value: 'percent', label: 'Percent' },
+  { value: 'atr', label: 'ATR multiple' },
+] as const
+
 const sizingMethods = [
   { value: 'fixed_shares', label: 'Fixed shares' },
   { value: 'fixed_dollars', label: 'Fixed dollars' },
@@ -36,6 +41,15 @@ function ensureTakeProfit() {
     model.value = {
       ...model.value,
       takeProfit: { type: 'r_multiple', value: 2 },
+    }
+  }
+}
+
+function ensureTrailingStop() {
+  if (!model.value.trailingStop) {
+    model.value = {
+      ...model.value,
+      trailingStop: { type: 'percent', value: 2 },
     }
   }
 }
@@ -63,6 +77,19 @@ function setTakeProfitType(type: 'fixed' | 'percent' | 'r_multiple' | '') {
   model.value = {
     ...model.value,
     takeProfit: { type, value: model.value.takeProfit?.value ?? 2 },
+  }
+}
+
+function setTrailingStopType(type: 'percent' | 'atr' | '') {
+  if (!type) {
+    const { trailingStop, ...rest } = model.value
+    model.value = rest
+    return
+  }
+  ensureTrailingStop()
+  model.value = {
+    ...model.value,
+    trailingStop: { type, value: model.value.trailingStop?.value ?? 2 },
   }
 }
 
@@ -135,6 +162,35 @@ function updateMaxRisk(raw: string) {
               @update:model-value="model = { ...model, takeProfit: { ...model.takeProfit!, value: Number($event) || 0 } }"
             />
           </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-medium text-text-secondary">Trailing stop</label>
+        <div class="grid grid-cols-2 gap-2 sm:max-w-md">
+          <select
+            :value="model.trailingStop?.type ?? ''"
+            class="h-9 rounded-md border border-border-strong bg-bg-raised px-2 font-mono text-xs text-text-primary"
+            @change="setTrailingStopType(($event.target as HTMLSelectElement).value as 'percent' | 'atr' | '')"
+          >
+            <option value="">
+              None
+            </option>
+            <option
+              v-for="opt in trailingStopTypes"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+          <UiInput
+            v-if="model.trailingStop"
+            :model-value="String(model.trailingStop.value)"
+            type="number"
+            placeholder="Value"
+            @update:model-value="model = { ...model, trailingStop: { ...model.trailingStop!, value: Number($event) || 0 } }"
+          />
         </div>
       </div>
 

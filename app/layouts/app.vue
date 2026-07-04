@@ -3,9 +3,7 @@
     <WorkspaceNavRail />
     <WorkspaceCommandBar />
     <main class="ml-rail pt-command-bar">
-      <div class="p-4">
-        <slot />
-      </div>
+      <slot />
     </main>
   </div>
 </template>

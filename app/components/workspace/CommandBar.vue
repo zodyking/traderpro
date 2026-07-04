@@ -1,8 +1,27 @@
 <script setup lang="ts">
-const connectionStatus = ref<'connected' | 'reconnecting' | 'disconnected'>('connected')
+const connection = useLiveChannel()
+const providerStatus = ref<'healthy' | 'delayed' | 'gapped' | 'untrusted' | 'unavailable'>('healthy')
+const providerMessage = ref<string>()
+
+onMounted(async () => {
+  connection.connect()
+
+  try {
+    const data = await $fetch<{
+      status: 'healthy' | 'delayed' | 'gapped' | 'untrusted' | 'unavailable'
+      message?: string
+    }>('/api/providers/status')
+    providerStatus.value = data.status
+    providerMessage.value = data.message
+  }
+  catch {
+    providerStatus.value = 'unavailable'
+    providerMessage.value = 'Provider status unavailable'
+  }
+})
 
 const statusLabel = computed(() => {
-  switch (connectionStatus.value) {
+  switch (connection.status.value) {
     case 'connected':
       return 'Live'
     case 'reconnecting':
@@ -15,7 +34,7 @@ const statusLabel = computed(() => {
 })
 
 const statusVariant = computed(() => {
-  switch (connectionStatus.value) {
+  switch (connection.status.value) {
     case 'connected':
       return 'bull' as const
     case 'reconnecting':
@@ -26,6 +45,12 @@ const statusVariant = computed(() => {
       return 'default' as const
   }
 })
+
+function onSymbolSelect(symbol: { id: string }) {
+  const workspace = useWorkspaceStore()
+  workspace.selectSymbol(symbol.id)
+  navigateTo('/app/chart')
+}
 </script>
 
 <template>
@@ -39,33 +64,15 @@ const statusVariant = computed(() => {
     </div>
 
     <div class="flex flex-1 items-center justify-center px-4">
-      <div class="relative w-full max-w-md">
-        <svg
-          class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-muted"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          aria-hidden="true"
-        >
-          <circle cx="7" cy="7" r="4.5" />
-          <path d="M10.5 10.5L14 14" stroke-linecap="round" />
-        </svg>
-        <input
-          type="search"
-          placeholder="Search symbols…"
-          class="h-8 w-full rounded-md border border-border-hair bg-bg-raised pr-20 pl-9 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
-          aria-label="Symbol search"
-        >
-        <kbd
-          class="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border border-border-strong bg-bg-overlay px-1.5 py-0.5 font-mono text-2xs text-text-muted"
-        >
-          ⌘K
-        </kbd>
-      </div>
+      <WorkspaceSymbolSearch @select="onSymbolSelect" />
     </div>
 
     <div class="flex shrink-0 items-center gap-3">
+      <WorkspaceProviderBadge
+        name="TradingView"
+        :state="providerStatus"
+        :title="providerMessage"
+      />
       <UiBadge :label="statusLabel" :variant="statusVariant" />
 
       <button

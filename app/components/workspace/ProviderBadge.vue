@@ -4,6 +4,7 @@ type ProviderState = 'healthy' | 'delayed' | 'gapped' | 'untrusted' | 'unavailab
 const props = defineProps<{
   name: string
   state: ProviderState
+  title?: string
 }>()
 
 const stateConfig: Record<
@@ -43,7 +44,7 @@ const config = computed(() => stateConfig[props.state])
 <template>
   <div
     class="inline-flex items-center gap-2 rounded border border-border-hair bg-bg-raised px-2.5 py-1.5"
-    :title="config.description"
+    :title="props.title ?? config.description"
   >
     <span class="font-mono text-xs text-text-secondary">{{ name }}</span>
     <UiBadge :label="config.label" :variant="config.variant" />

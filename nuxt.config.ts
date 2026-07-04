@@ -14,6 +14,11 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+  nitro: {
+    experimental: {
+      websocket: true,
+    },
+  },
   runtimeConfig: {
     databaseUrl: process.env.DATABASE_URL || '',
     redisUrl: process.env.REDIS_URL || 'redis://127.0.0.1:6379',

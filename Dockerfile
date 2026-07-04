@@ -24,7 +24,9 @@ ENV PORT=3000
 
 COPY package.json package-lock.json ./
 
-RUN npm ci --omit=dev && npm install tsx drizzle-kit
+RUN npm ci --omit=dev \
+  && npm install --save-prod tsx drizzle-kit \
+  && npm cache clean --force
 
 COPY --from=build /app/.output ./.output
 COPY db ./db

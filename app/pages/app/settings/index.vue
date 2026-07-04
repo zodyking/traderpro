@@ -307,6 +307,10 @@ async function signOut() {
             </div>
           </UiPanel>
 
+          <UiPanel title="Security">
+            <SettingsMfaPanel />
+          </UiPanel>
+
           <UiPanel title="Session">
             <div class="flex items-center justify-between gap-4">
               <div>

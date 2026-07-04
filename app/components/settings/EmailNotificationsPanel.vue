@@ -42,6 +42,8 @@ const preferences = ref<EmailNotificationPreferences>({
   productUpdates: false,
 })
 const smtpConfigured = ref(true)
+const smtpFromEmail = ref<string | null>(null)
+const smtpFromSource = ref<string | null>(null)
 const loading = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
@@ -53,9 +55,13 @@ onMounted(async () => {
     const data = await $fetch<{
       preferences: EmailNotificationPreferences
       smtpConfigured: boolean
+      smtpFromEmail: string | null
+      smtpFromEmailSource: string | null
     }>('/api/me/notifications')
     preferences.value = data.preferences
     smtpConfigured.value = data.smtpConfigured
+    smtpFromEmail.value = data.smtpFromEmail
+    smtpFromSource.value = data.smtpFromEmailSource
   }
   catch (err: unknown) {
     error.value = err instanceof Error ? err.message : 'Failed to load notification settings'
@@ -110,7 +116,16 @@ async function savePreferences() {
       v-if="!smtpConfigured"
       class="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn"
     >
-      Email delivery is not configured on this server yet. Your preferences are saved and will apply once SMTP is enabled.
+      Email delivery is not fully configured. Set <span class="font-mono">SMTP_HOST</span> and
+      <span class="font-mono">SMTP_FROM_EMAIL</span> in your server environment, then redeploy.
+    </p>
+    <p
+      v-else-if="smtpFromEmail"
+      class="rounded-md border border-border-hair bg-bg-raised px-3 py-2 text-xs text-text-muted"
+    >
+      Outgoing mail is sent from
+      <span class="font-medium text-text-secondary">{{ smtpFromEmail }}</span>
+      <span v-if="smtpFromSource === 'derived'"> (derived from your app URL — set SMTP_FROM_EMAIL for production)</span>.
     </p>
 
     <div

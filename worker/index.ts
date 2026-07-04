@@ -2,7 +2,9 @@ import { Worker } from 'bullmq'
 import IORedis from 'ioredis'
 import { initDbPool } from '../server/plugins/db'
 import { initRedis } from '../server/utils/redis'
+import { processAiJob } from './ai-processor'
 import { processBacktestJob } from './backtest-processor'
+import { processBrokerSyncJob } from './broker-sync-processor'
 import { processMarketIngestJob, runMarketIngest } from './market-ingester'
 import { processScanJob } from './scan-processor'
 
@@ -36,6 +38,18 @@ function createProcessor(queueName: QueueName) {
   if (queueName === 'scan') {
     return async (job: Parameters<typeof processScanJob>[0]) => {
       await processScanJob(job)
+    }
+  }
+
+  if (queueName === 'ai') {
+    return async (job: Parameters<typeof processAiJob>[0]) => {
+      await processAiJob(job)
+    }
+  }
+
+  if (queueName === 'broker-sync') {
+    return async (job: Parameters<typeof processBrokerSyncJob>[0]) => {
+      await processBrokerSyncJob(job)
     }
   }
 

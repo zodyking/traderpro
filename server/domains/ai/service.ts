@@ -7,6 +7,11 @@ import { useDb } from '../../utils/db'
 import { getAIProvider } from './factory'
 import { buildAIReviewPacket } from './packet'
 import { buildPrompt, getSystemPrompt, parseAIResult } from './prompt'
+import { enqueueAiReviewJob } from './queue'
+
+export function isAiAsyncMode() {
+  return process.env.AI_ASYNC === '1'
+}
 
 export async function requestReview(
   userId: string,
@@ -30,6 +35,23 @@ export async function requestReview(
     reviewType: input.reviewType,
   })
 
+  if (isAiAsyncMode()) {
+    await db.insert(aiReviews).values({
+      id: reviewId,
+      userId,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      packet,
+      result: null,
+      model: provider.modelName,
+      status: 'queued',
+    })
+
+    await enqueueAiReviewJob(reviewId)
+
+    return { id: reviewId, status: 'queued' as const, result: null }
+  }
+
   await db.insert(aiReviews).values({
     id: reviewId,
     userId,
@@ -42,9 +64,45 @@ export async function requestReview(
   })
 
   try {
-    const prompt = buildPrompt(packet)
+    const result = await completeAiReview(reviewId)
+    return { id: reviewId, status: 'done' as const, result }
+  }
+  catch (error) {
+    await db
+      .update(aiReviews)
+      .set({ status: 'failed' })
+      .where(eq(aiReviews.id, reviewId))
+    throw error
+  }
+}
+
+export async function completeAiReview(reviewId: string) {
+  const db = useDb()
+  const [review] = await db
+    .select()
+    .from(aiReviews)
+    .where(eq(aiReviews.id, reviewId))
+    .limit(1)
+
+  if (!review) {
+    throw new Error(`AI review ${reviewId} not found`)
+  }
+
+  if (review.status === 'done' && review.result) {
+    return review.result
+  }
+
+  const provider = getAIProvider()
+
+  await db
+    .update(aiReviews)
+    .set({ status: 'running' })
+    .where(eq(aiReviews.id, reviewId))
+
+  try {
+    const prompt = buildPrompt(review.packet)
     const completion = await provider.completeReview(prompt, {
-      systemPrompt: getSystemPrompt(packet.requestedReviewType),
+      systemPrompt: getSystemPrompt(review.packet.requestedReviewType),
       maxTokens: 1024,
       temperature: 0.3,
     })
@@ -63,9 +121,9 @@ export async function requestReview(
       })
       .where(eq(aiReviews.id, reviewId))
 
-    await incrementUsage(userId, 'aiCredits')
+    await incrementUsage(review.userId, 'aiCredits')
 
-    return { id: reviewId, status: 'done' as const, result }
+    return result
   }
   catch (error) {
     await db

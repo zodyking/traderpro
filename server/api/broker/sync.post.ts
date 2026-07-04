@@ -1,5 +1,5 @@
 import { brokerImportSchema } from '#shared/schemas/broker'
-import { importCsv } from '../../domains/broker/service'
+import { enqueueBrokerSync, resolveConnectionForSync } from '../../domains/broker/sync-service'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -23,8 +23,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const input = brokerImportSchema.parse(body)
-  const result = await importCsv(user.id, input)
+  const connectionId = await resolveConnectionForSync(user.id, input)
+  const { jobId } = await enqueueBrokerSync(user.id, connectionId, input)
 
-  setResponseStatus(event, 201)
-  return result
+  setResponseStatus(event, 202)
+  return { jobId, connectionId, status: 'queued' }
 })

@@ -26,6 +26,7 @@ export type BacktestProgress = BacktestProgressEvent
 export type BacktestRunSummary = {
   id: string
   status: BacktestRunStatus
+  strategyVersionId?: string
   config: BacktestRunConfig
   error: string | null
   queuedAt: Date

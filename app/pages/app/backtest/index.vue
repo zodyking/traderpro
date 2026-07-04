@@ -17,6 +17,23 @@ const showProgress = computed(() => backtestStore.isRunning)
 const showReport = computed(() => backtestStore.isComplete && backtestStore.metrics != null)
 const showFailed = computed(() => backtestStore.activeRun?.status === 'failed')
 
+function pct(value?: number | null, digits = 1) {
+  if (value == null) return '—'
+  return `${(value * 100).toFixed(digits)}%`
+}
+
+async function handleWalkForward() {
+  const runId = backtestStore.activeRun?.id
+  if (!runId) return
+  await backtestStore.runWalkForward(runId)
+}
+
+async function handleMonteCarlo() {
+  const runId = backtestStore.activeRun?.id
+  if (!runId) return
+  await backtestStore.runMonteCarlo(runId)
+}
+
 watch(
   runId,
   (id) => {
@@ -117,6 +134,124 @@ onBeforeUnmount(() => {
         :equity="backtestStore.equity"
         :loading="backtestStore.loading"
       />
+
+      <div
+        v-if="showReport && backtestStore.activeRun?.id"
+        class="mt-6"
+      >
+        <UiPanel title="Advanced Research">
+          <p class="mb-4 text-sm text-text-secondary">
+            Validate robustness with walk-forward folds and Monte Carlo resampling of trade outcomes.
+          </p>
+
+          <div class="flex flex-wrap gap-3">
+            <UiBtn
+              variant="secondary"
+              :disabled="backtestStore.researchLoading"
+              @click="handleWalkForward"
+            >
+              Run Walk-Forward
+            </UiBtn>
+            <UiBtn
+              variant="secondary"
+              :disabled="backtestStore.researchLoading"
+              @click="handleMonteCarlo"
+            >
+              Run Monte Carlo
+            </UiBtn>
+          </div>
+
+          <div
+            v-if="backtestStore.walkForwardResult"
+            class="mt-5 rounded-lg border border-border-hair bg-bg-surface p-4"
+          >
+            <h3 class="text-sm font-medium text-text-primary">
+              Walk-Forward ({{ backtestStore.walkForwardResult.foldCount }} folds)
+            </h3>
+            <p class="mt-1 text-sm text-text-secondary">
+              Avg return {{ pct(backtestStore.walkForwardResult.aggregate.avgTotalReturn) }}
+              · Avg max DD {{ pct(backtestStore.walkForwardResult.aggregate.avgMaxDrawdown) }}
+              · Avg Sharpe {{ backtestStore.walkForwardResult.aggregate.avgSharpe?.toFixed(2) ?? '—' }}
+            </p>
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead>
+                  <tr class="text-text-secondary">
+                    <th class="pb-2 pr-4 font-medium">
+                      Fold
+                    </th>
+                    <th class="pb-2 pr-4 font-medium">
+                      Period
+                    </th>
+                    <th class="pb-2 pr-4 font-medium">
+                      Return
+                    </th>
+                    <th class="pb-2 font-medium">
+                      Max DD
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="fold in backtestStore.walkForwardResult.folds"
+                    :key="fold.foldIndex"
+                    class="border-t border-border-hair text-text-primary"
+                  >
+                    <td class="py-2 pr-4">
+                      {{ fold.foldIndex + 1 }}
+                    </td>
+                    <td class="py-2 pr-4 text-text-secondary">
+                      {{ new Date(fold.dateRange.from).toLocaleDateString() }}
+                      –
+                      {{ new Date(fold.dateRange.to).toLocaleDateString() }}
+                    </td>
+                    <td class="py-2 pr-4">
+                      {{ pct(fold.metrics.totalReturn) }}
+                    </td>
+                    <td class="py-2">
+                      {{ pct(fold.metrics.maxDrawdown) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div
+            v-if="backtestStore.monteCarloResult"
+            class="mt-5 rounded-lg border border-border-hair bg-bg-surface p-4"
+          >
+            <h3 class="text-sm font-medium text-text-primary">
+              Monte Carlo ({{ backtestStore.monteCarloResult.iterations }} iterations)
+            </h3>
+            <p class="mt-1 text-sm text-text-secondary">
+              {{ backtestStore.monteCarloResult.tradeCount }} trades resampled with replacement.
+            </p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-text-secondary">
+                  Total return
+                </p>
+                <p class="mt-1 text-sm text-text-primary">
+                  P5 {{ pct(backtestStore.monteCarloResult.returns.p5) }}
+                  · P50 {{ pct(backtestStore.monteCarloResult.returns.p50) }}
+                  · P95 {{ pct(backtestStore.monteCarloResult.returns.p95) }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-text-secondary">
+                  Max drawdown
+                </p>
+                <p class="mt-1 text-sm text-text-primary">
+                  P5 {{ pct(backtestStore.monteCarloResult.maxDrawdown.p5) }}
+                  · P50 {{ pct(backtestStore.monteCarloResult.maxDrawdown.p50) }}
+                  · P95 {{ pct(backtestStore.monteCarloResult.maxDrawdown.p95) }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </UiPanel>
+      </div>
 
       <div
         v-if="showReport && backtestStore.activeRun?.strategyVersionId"

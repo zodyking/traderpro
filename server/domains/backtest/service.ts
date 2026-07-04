@@ -17,6 +17,7 @@ import { getStrategyVersion } from '../strategy/service'
 import { useDb } from '../../utils/db'
 import { useRedis } from '../../utils/redis'
 import { calculateMetrics } from './metrics'
+import { runMonteCarlo, type MonteCarloResult } from './monte-carlo'
 import { checkUsage, incrementUsage } from '../billing/entitlements'
 import { enqueueBacktestJob } from './queue'
 import { simulateLongOnly, type SimulatorCandle } from './simulator'
@@ -112,6 +113,7 @@ function formatRunSummary(run: typeof backtestRuns.$inferSelect) {
   return {
     id: run.id,
     status: run.status,
+    strategyVersionId: run.strategyVersionId,
     config: run.config,
     error: run.error,
     queuedAt: run.queuedAt,
@@ -450,4 +452,35 @@ export async function getEquityCurve(userId: string, runId: string) {
     .orderBy(asc(equityPoints.time))
 
   return { points }
+}
+
+export async function runMonteCarloForBacktest(
+  userId: string,
+  runId: string,
+  iterations: number,
+): Promise<MonteCarloResult> {
+  const run = await assertRunOwnership(userId, runId)
+
+  if (run.status !== 'done') {
+    throw createError({ statusCode: 400, statusMessage: 'Backtest run must be complete' })
+  }
+
+  const db = useDb()
+  const trades = await db
+    .select({ pnl: backtestTrades.pnl })
+    .from(backtestTrades)
+    .where(eq(backtestTrades.runId, runId))
+    .orderBy(asc(backtestTrades.entryTime))
+
+  const pnls = trades
+    .map(trade => (trade.pnl != null ? Number(trade.pnl) : null))
+    .filter((pnl): pnl is number => pnl != null && Number.isFinite(pnl))
+
+  const config = run.config as { capital: number }
+
+  return runMonteCarlo({
+    pnls,
+    startingCapital: config.capital,
+    iterations,
+  })
 }

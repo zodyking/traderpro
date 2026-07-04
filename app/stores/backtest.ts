@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { BacktestRunConfig } from '../../db/schema/backtest'
 import type { BacktestMetricsSummary, BacktestProgress as BacktestProgressPayload, BacktestRunStatus, BacktestRunSummary } from '#shared/types/backtest'
 
 export type BacktestProgress = BacktestProgressPayload
@@ -7,9 +8,31 @@ export type BacktestRun = {
   id: string
   status: BacktestRunStatus
   strategyVersionId?: string
+  config?: BacktestRunConfig & { interval?: string }
   error?: string | null
   queuedAt: string
   finishedAt?: string | null
+}
+
+export type WalkForwardResult = {
+  foldCount: number
+  folds: Array<{
+    foldIndex: number
+    dateRange: { from: string; to: string }
+    metrics: BacktestMetricsSummary
+  }>
+  aggregate: {
+    avgTotalReturn: number | null
+    avgMaxDrawdown: number | null
+    avgSharpe: number | null
+  }
+}
+
+export type MonteCarloResult = {
+  iterations: number
+  tradeCount: number
+  returns: { p5: number; p50: number; p95: number }
+  maxDrawdown: { p5: number; p50: number; p95: number }
 }
 
 export type BacktestMetrics = BacktestMetricsSummary
@@ -39,11 +62,12 @@ function parseNumeric(value: unknown): number | null {
   return Number.isFinite(num) ? num : null
 }
 
-function normalizeRun(run: BacktestRunSummary & { strategyVersionId?: string }): BacktestRun {
+function normalizeRun(run: BacktestRunSummary): BacktestRun {
   return {
     id: run.id,
     status: run.status,
     strategyVersionId: run.strategyVersionId,
+    config: run.config as BacktestRunConfig & { interval?: string },
     error: run.error,
     queuedAt: run.queuedAt instanceof Date ? run.queuedAt.toISOString() : String(run.queuedAt),
     finishedAt: run.finishedAt
@@ -110,6 +134,9 @@ export const useBacktestStore = defineStore('backtest', () => {
   const equity = ref<EquityPoint[]>([])
   const loading = ref(false)
   const submitting = ref(false)
+  const researchLoading = ref(false)
+  const walkForwardResult = ref<WalkForwardResult | null>(null)
+  const monteCarloResult = ref<MonteCarloResult | null>(null)
   const error = ref<string | null>(null)
 
   let unsubscribeProgress: (() => void) | null = null
@@ -128,6 +155,8 @@ export const useBacktestStore = defineStore('backtest', () => {
     metrics.value = null
     trades.value = []
     equity.value = []
+    walkForwardResult.value = null
+    monteCarloResult.value = null
   }
 
   function stopTracking() {
@@ -151,7 +180,7 @@ export const useBacktestStore = defineStore('backtest', () => {
 
   async function fetchRun(runId: string) {
     const data = await $fetch<{
-      run: BacktestRunSummary & { strategyVersionId?: string }
+      run: BacktestRunSummary
       metrics?: Record<string, unknown> | null
     }>(`/api/backtests/${runId}`)
 
@@ -249,7 +278,7 @@ export const useBacktestStore = defineStore('backtest', () => {
 
     try {
       const [runData, tradesData, equityData] = await Promise.all([
-        $fetch<{ run: BacktestRunSummary & { strategyVersionId?: string }, metrics?: Record<string, unknown> | null }>(
+        $fetch<{ run: BacktestRunSummary, metrics?: Record<string, unknown> | null }>(
           `/api/backtests/${runId}`,
         ),
         $fetch<{ trades: Array<Record<string, unknown>> }>(`/api/backtests/${runId}/trades`),
@@ -294,6 +323,46 @@ export const useBacktestStore = defineStore('backtest', () => {
     }
   }
 
+  async function runWalkForward(runId: string, foldCount = 4) {
+    researchLoading.value = true
+    error.value = null
+
+    try {
+      walkForwardResult.value = await $fetch<WalkForwardResult>('/api/backtests/walk-forward', {
+        method: 'POST',
+        body: { baseRunId: runId, foldCount },
+      })
+      return walkForwardResult.value
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Walk-forward analysis failed'
+      throw err
+    }
+    finally {
+      researchLoading.value = false
+    }
+  }
+
+  async function runMonteCarlo(runId: string, iterations = 1000) {
+    researchLoading.value = true
+    error.value = null
+
+    try {
+      monteCarloResult.value = await $fetch<MonteCarloResult>(`/api/backtests/${runId}/monte-carlo`, {
+        method: 'POST',
+        body: { iterations },
+      })
+      return monteCarloResult.value
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Monte Carlo simulation failed'
+      throw err
+    }
+    finally {
+      researchLoading.value = false
+    }
+  }
+
   function clearActiveRun() {
     stopTracking()
     activeRun.value = null
@@ -310,6 +379,9 @@ export const useBacktestStore = defineStore('backtest', () => {
     equity,
     loading,
     submitting,
+    researchLoading,
+    walkForwardResult,
+    monteCarloResult,
     error,
     isRunning,
     isComplete,
@@ -317,6 +389,8 @@ export const useBacktestStore = defineStore('backtest', () => {
     pollRun,
     loadReport,
     initializeRun,
+    runWalkForward,
+    runMonteCarlo,
     clearActiveRun,
     stopTracking,
   }

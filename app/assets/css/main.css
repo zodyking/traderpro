@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surfaces */
+  --color-bg-base: #0a0e17;
+  --color-bg-surface: #0f1522;
+  --color-bg-raised: #151d2e;
+  --color-bg-overlay: #1c2740;
+
+  /* Borders */
+  --color-border-hair: #1a2338;
+  --color-border-strong: #232f48;
+
+  /* Text */
+  --color-text-primary: #e8edf7;
+  --color-text-secondary: #9aa6bf;
+  --color-text-muted: #5c6a85;
+
+  /* Brand */
+  --color-accent: #14e0b8;
+  --color-accent-hover: #3beacb;
+  --color-accent-pressed: #0c9c81;
+  --color-indigo: #6366f1;
+
+  /* Semantic */
+  --color-bull: #16c784;
+  --color-bear: #ea3943;
+  --color-warn: #f5a623;
+  --color-info: #38bdf8;
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.75rem;
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.8125rem;
+  --text-base--line-height: 1.25rem;
+  --text-md: 0.875rem;
+  --text-md--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.25rem;
+  --text-2xl--line-height: 1.75rem;
+  --text-3xl: 1.5rem;
+  --text-3xl--line-height: 2rem;
+  --text-4xl: 1.875rem;
+  --text-4xl--line-height: 2.25rem;
+
+  /* Spacing (4px base) */
+  --spacing-0: 0px;
+  --spacing-px: 1px;
+  --spacing-0_5: 2px;
+  --spacing-1: 4px;
+  --spacing-1_5: 6px;
+  --spacing-2: 8px;
+  --spacing-2_5: 10px;
+  --spacing-3: 12px;
+  --spacing-3_5: 14px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-7: 28px;
+  --spacing-8: 32px;
+  --spacing-9: 36px;
+  --spacing-10: 40px;
+  --spacing-11: 44px;
+  --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+
+  /* Layout */
+  --spacing-rail: 56px;
+  --spacing-command-bar: 48px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Shadows */
+  --shadow-panel: 0 1px 0 0 rgb(255 255 255 / 0.03) inset;
+}
+
+@layer base {
+  :root {
+    --bg-base: #0a0e17;
+    --bg-surface: #0f1522;
+    --bg-raised: #151d2e;
+    --bg-overlay: #1c2740;
+    --border-hair: #1a2338;
+    --border-strong: #232f48;
+    --text-primary: #e8edf7;
+    --text-secondary: #9aa6bf;
+    --text-muted: #5c6a85;
+    --accent: #14e0b8;
+    --accent-hover: #3beacb;
+    --accent-pressed: #0c9c81;
+    --indigo: #6366f1;
+    --bull: #16c784;
+    --bear: #ea3943;
+    --warn: #f5a623;
+    --info: #38bdf8;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    color: var(--text-primary);
+    background-color: var(--bg-base);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  .light {
+    --bg-base: #f4f6fa;
+    --bg-surface: #ffffff;
+    --bg-raised: #eef1f7;
+    --bg-overlay: #e2e7f0;
+    --border-hair: #d8dee9;
+    --border-strong: #c4ccdb;
+    --text-primary: #0f1522;
+    --text-secondary: #4a5568;
+    --text-muted: #8b95a8;
+    --accent: #0c9c81;
+    --accent-hover: #14e0b8;
+    --accent-pressed: #087a65;
+    --indigo: #4f46e5;
+    --bull: #0d9f6e;
+    --bear: #dc2626;
+    --warn: #d97706;
+    --info: #0284c7;
+
+    --color-bg-base: #f4f6fa;
+    --color-bg-surface: #ffffff;
+    --color-bg-raised: #eef1f7;
+    --color-bg-overlay: #e2e7f0;
+    --color-border-hair: #d8dee9;
+    --color-border-strong: #c4ccdb;
+    --color-text-primary: #0f1522;
+    --color-text-secondary: #4a5568;
+    --color-text-muted: #8b95a8;
+    --color-accent: #0c9c81;
+    --color-accent-hover: #14e0b8;
+    --color-accent-pressed: #087a65;
+    --color-indigo: #4f46e5;
+    --color-bull: #0d9f6e;
+    --color-bear: #dc2626;
+    --color-warn: #d97706;
+    --color-info: #0284c7;
+  }
+}
+
+@layer utilities {
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--bg-raised) 0%,
+      var(--bg-overlay) 50%,
+      var(--bg-raised) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

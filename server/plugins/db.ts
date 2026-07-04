@@ -1,0 +1,29 @@
+import postgres from 'postgres'
+
+const poolHolder: { pool?: ReturnType<typeof postgres> } = {}
+
+export function useDbPool() {
+  if (!poolHolder.pool) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Database pool not initialized',
+    })
+  }
+  return poolHolder.pool
+}
+
+export default defineNitroPlugin((nitroApp) => {
+  const { databaseUrl } = useRuntimeConfig()
+
+  if (!databaseUrl) {
+    console.warn('[db] DATABASE_URL is not configured')
+    return
+  }
+
+  poolHolder.pool = postgres(databaseUrl, { max: 10 })
+
+  nitroApp.hooks.hook('close', async () => {
+    await poolHolder.pool?.end({ timeout: 5 })
+    poolHolder.pool = undefined
+  })
+})

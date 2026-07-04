@@ -1,0 +1,16 @@
+node_modules
+.nuxt
+.output
+.git
+.github
+.env
+.env.*
+!.env.example
+*.md
+.vscode
+.idea
+coverage
+dist
+*.log
+.DS_Store
+Thumbs.db

@@ -3,6 +3,12 @@ import IORedis from 'ioredis'
 import { runBacktest } from '../domains/backtest/service'
 
 export default defineNitroPlugin((nitroApp) => {
+  // Only run in-process in dev when explicitly opted in.
+  // In production the standalone worker service is the sole consumer.
+  if (!process.env.BACKTEST_BRIDGE) {
+    return
+  }
+
   const { redisUrl } = useRuntimeConfig()
   if (!redisUrl) {
     console.warn('[backtest-bridge] REDIS_URL is not configured')

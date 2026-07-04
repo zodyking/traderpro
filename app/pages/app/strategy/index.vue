@@ -8,6 +8,20 @@ const strategyStore = useStrategyStore()
 const workspace = useWorkspaceStore()
 const backtestStore = useBacktestStore()
 
+const templatePickerOpen = ref(false)
+
+function applyTemplate(templateId: string) {
+  if (strategyStore.isDirty && !confirm('Discard unsaved changes and load template?')) return
+  strategyStore.resetDraftFromTemplate(templateId as Parameters<typeof strategyStore.resetDraftFromTemplate>[0])
+  templatePickerOpen.value = false
+}
+
+// Novice guardrail
+const showNoviceDialog = ref(false)
+const pendingSaveNote = ref<string | undefined>()
+const { user } = useUserSession()
+const isNovice = computed(() => (user.value as { experience?: string } | null)?.experience === 'novice')
+
 const validationIssues = computed(() => strategyStore.validate())
 const hasErrors = computed(() => validationIssues.value.some((issue) => issue.level === 'error'))
 const signalMarkers = ref<Array<{ time: string, kind: 'entry_long' | 'entry_short' | 'exit' | 'filter' | 'warning', label?: string }>>([])
@@ -64,7 +78,19 @@ onMounted(async () => {
 })
 
 async function handleSave() {
+  // Section 21.1: if novice user has no stop-loss, show blocking dialog
+  const hasStopLoss = Boolean(strategyStore.draftRiskModel.stopLoss)
+  if (isNovice.value && !hasStopLoss) {
+    showNoviceDialog.value = true
+    return
+  }
   await strategyStore.saveVersion()
+}
+
+async function confirmSaveAnyway() {
+  showNoviceDialog.value = false
+  await strategyStore.saveVersion(pendingSaveNote.value)
+  pendingSaveNote.value = undefined
 }
 
 function handleSelectVersion(versionId: string) {
@@ -111,6 +137,56 @@ async function handleRunBacktest() {
       </div>
 
       <div class="flex items-center gap-2">
+        <div class="relative">
+          <UiBtn
+            variant="ghost"
+            size="sm"
+            @click="templatePickerOpen = !templatePickerOpen"
+          >
+            Templates
+            <svg class="size-3.5 ml-0.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </UiBtn>
+          <div
+            v-if="templatePickerOpen"
+            class="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border-hair bg-bg-surface shadow-panel"
+          >
+            <div class="border-b border-border-hair px-3 py-2">
+              <p class="text-2xs font-medium tracking-wide text-text-muted uppercase">
+                Starter Templates
+              </p>
+            </div>
+            <div class="flex flex-col py-1">
+              <button
+                v-for="tpl in strategyStore.templates"
+                :key="tpl.id"
+                class="flex flex-col gap-0.5 px-3 py-2.5 text-left hover:bg-bg-raised transition-colors"
+                @click="applyTemplate(tpl.id)"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-sm font-medium text-text-primary">{{ tpl.name }}</span>
+                  <span
+                    class="text-2xs px-1.5 py-0.5 rounded font-medium"
+                    :class="{
+                      'bg-bull/10 text-bull': tpl.difficulty === 'beginner',
+                      'bg-accent/10 text-accent': tpl.difficulty === 'intermediate',
+                      'bg-warn/10 text-warn': tpl.difficulty === 'advanced',
+                    }"
+                  >
+                    {{ tpl.difficulty }}
+                  </span>
+                </div>
+                <p class="text-xs text-text-muted leading-snug">{{ tpl.description }}</p>
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="templatePickerOpen"
+            class="fixed inset-0 z-40"
+            @click="templatePickerOpen = false"
+          />
+        </div>
         <UiBadge
           v-if="triggerCount > 0"
           :label="`${triggerCount} triggers`"
@@ -246,5 +322,66 @@ async function handleRunBacktest() {
         Run backtest
       </UiBtn>
     </footer>
-  </div>
+
+    <!-- Novice guardrail: blocking dialog when no stop-loss is set -->
+    <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-100 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showNoviceDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="novice-dialog-title"
+      >
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showNoviceDialog = false" />
+        <div class="relative z-10 w-full max-w-md rounded-xl border border-warn/40 bg-bg-overlay p-6 shadow-2xl">
+          <div class="mb-4 flex items-start gap-3">
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-warn/20">
+              <svg class="size-5 text-warn" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+              </svg>
+            </span>
+            <div>
+              <h2 id="novice-dialog-title" class="font-semibold text-text-primary">
+                No stop-loss configured
+              </h2>
+              <p class="mt-1 text-sm text-text-secondary">
+                Trading without a stop-loss is the most common cause of large, unplanned losses for new traders.
+                We recommend setting a stop-loss before saving this strategy.
+              </p>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-border-hair bg-bg-raised p-3 text-xs text-text-secondary">
+            <span class="font-medium text-text-primary">How to add one:</span>
+            scroll down to the Risk Model section and set a stop-loss type (fixed, percent, or ATR).
+          </div>
+
+          <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <UiBtn
+              variant="secondary"
+              @click="showNoviceDialog = false"
+            >
+              Go back and add a stop-loss
+            </UiBtn>
+            <UiBtn
+              variant="ghost"
+              class="text-text-muted text-sm"
+              @click="confirmSaveAnyway"
+            >
+              Save anyway (I understand the risk)
+            </UiBtn>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+</div>
 </template>

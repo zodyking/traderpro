@@ -19,6 +19,7 @@ const label = ref('')
 const csvContent = ref('')
 const fileName = ref<string | null>(null)
 const fileError = ref<string | null>(null)
+const showMappingModal = ref(false)
 
 const canSubmit = computed(() => broker.value && label.value.trim() && csvContent.value.trim())
 
@@ -53,7 +54,12 @@ async function handleSubmit() {
       label: label.value.trim(),
       csv: csvContent.value,
     })
-    emit('imported')
+    if (store.unresolvedSymbols.length > 0) {
+      showMappingModal.value = true
+    }
+    else {
+      emit('imported')
+    }
     label.value = ''
     csvContent.value = ''
     fileName.value = null
@@ -61,6 +67,16 @@ async function handleSubmit() {
   catch {
     // error shown via store.importError
   }
+}
+
+function onMappingDone() {
+  showMappingModal.value = false
+  emit('imported')
+}
+
+function onMappingSkip() {
+  showMappingModal.value = false
+  emit('imported')
 }
 </script>
 
@@ -169,4 +185,13 @@ async function handleSubmit() {
       </UiBtn>
     </form>
   </UiPanel>
+
+  <Teleport to="body">
+    <BrokerSymbolMappingModal
+      v-if="showMappingModal"
+      :raw-symbols="store.unresolvedSymbols"
+      @done="onMappingDone"
+      @skip="onMappingSkip"
+    />
+  </Teleport>
 </template>

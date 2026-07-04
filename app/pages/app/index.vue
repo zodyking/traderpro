@@ -82,9 +82,7 @@ const metrics = [
     </div>
 
     <UiPanel title="Recent Activity">
-      <p class="text-sm text-text-muted">
-        Activity feed and alerts will appear here.
-      </p>
+      <AlertsAlertFeed />
     </UiPanel>
   </div>
 </template>

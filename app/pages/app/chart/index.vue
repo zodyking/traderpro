@@ -185,121 +185,129 @@ function setIntervalValue(value: typeof intervals[number]) {
         />
       </ClientOnly>
 
-      <div
-        v-if="alertsOpen"
-        class="rounded-lg border border-border-strong bg-bg-surface"
-      >
-        <div class="flex items-center justify-between border-b border-border-hair px-4 py-3">
-          <h2 class="text-sm font-semibold text-text-primary">
-            Alerts
-          </h2>
-          <div class="flex items-center gap-2">
-            <UiBtn
-              variant="ghost"
-              size="sm"
-              :loading="scanning"
-              @click="runScan"
-            >
-              Scan Now
-            </UiBtn>
-            <UiBtn
-              variant="secondary"
-              size="sm"
-              @click="showAlertForm = !showAlertForm"
-            >
-              + New Alert
-            </UiBtn>
-          </div>
-        </div>
-
         <div
-          v-if="scanMatches.length"
-          class="border-b border-border-hair bg-bull/5 px-4 py-2"
+          v-if="alertsOpen"
+          class="rounded-lg border border-border-strong bg-bg-surface"
         >
-          <p class="text-xs font-medium text-bull">
-            {{ scanMatches.length }} alert{{ scanMatches.length === 1 ? '' : 's' }} fired
-          </p>
-          <ul class="mt-1 space-y-0.5">
+          <div class="flex items-center justify-between border-b border-border-hair px-4 py-3">
+            <h2 class="text-sm font-semibold text-text-primary">
+              Alerts
+            </h2>
+            <div class="flex items-center gap-2">
+              <UiBtn
+                variant="ghost"
+                size="sm"
+                :loading="scanning"
+                @click="runScan"
+              >
+                Scan Now
+              </UiBtn>
+              <UiBtn
+                variant="secondary"
+                size="sm"
+                @click="showAlertForm = !showAlertForm"
+              >
+                + New Alert
+              </UiBtn>
+            </div>
+          </div>
+
+          <div
+            v-if="scanMatches.length"
+            class="border-b border-border-hair bg-bull/5 px-4 py-2"
+          >
+            <p class="text-xs font-medium text-bull">
+              {{ scanMatches.length }} alert{{ scanMatches.length === 1 ? '' : 's' }} fired
+            </p>
+            <ul class="mt-1 space-y-0.5">
+              <li
+                v-for="match in scanMatches"
+                :key="`${match.alertId}-${match.symbolId}`"
+                class="font-mono text-2xs text-text-secondary"
+              >
+                Alert {{ match.alertId.slice(0, 8) }} fired on {{ match.symbolId.slice(0, 8) }}
+              </li>
+            </ul>
+          </div>
+
+          <div
+            v-if="showAlertForm"
+            class="p-4"
+          >
+            <AlertsAlertForm
+              :symbol-id="workspace.activeSymbolId ?? undefined"
+              @created="onAlertCreated"
+              @cancel="showAlertForm = false"
+            />
+          </div>
+
+          <div
+            v-if="alertsLoading"
+            class="px-4 py-8 text-center text-sm text-text-muted"
+          >
+            Loading alerts…
+          </div>
+
+          <ul
+            v-else-if="alerts.length"
+            class="divide-y divide-border-hair"
+          >
             <li
-              v-for="match in scanMatches"
-              :key="`${match.alertId}-${match.symbolId}`"
-              class="font-mono text-2xs text-text-secondary"
+              v-for="alert in alerts"
+              :key="alert.id"
+              class="flex items-center justify-between gap-3 px-4 py-3"
             >
-              Alert {{ match.alertId.slice(0, 8) }} fired on {{ match.symbolId.slice(0, 8) }}
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-mono text-xs text-text-primary">
+                  {{ alert.condition.hash.slice(0, 8) }}…
+                </p>
+                <p class="mt-0.5 text-2xs text-text-muted">
+                  {{ alert.symbolId ? `Symbol: ${alert.symbolId.slice(0, 8)}…` : 'All symbols' }}
+                  <span
+                    v-if="alert.lastFiredAt"
+                    class="ml-2"
+                  >Fired: {{ new Date(alert.lastFiredAt).toLocaleDateString() }}</span>
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded border px-2 py-0.5 text-2xs transition-colors"
+                  :class="
+                    alert.active
+                      ? 'border-bull/30 bg-bull/10 text-bull hover:bg-bull/20'
+                      : 'border-border-hair text-text-muted hover:border-border-strong'
+                  "
+                  @click="toggleAlert(alert)"
+                >
+                  {{ alert.active ? 'Active' : 'Paused' }}
+                </button>
+                <button
+                  type="button"
+                  class="rounded border border-bear/30 px-2 py-0.5 text-2xs text-bear transition-colors hover:bg-bear/10"
+                  @click="deleteAlert(alert.id)"
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           </ul>
-        </div>
 
-        <div
-          v-if="showAlertForm"
-          class="p-4"
-        >
-          <AlertsAlertForm
-            :symbol-id="workspace.activeSymbolId ?? undefined"
-            @created="onAlertCreated"
-            @cancel="showAlertForm = false"
-          />
-        </div>
-
-        <div
-          v-if="alertsLoading"
-          class="px-4 py-8 text-center text-sm text-text-muted"
-        >
-          Loading alerts…
-        </div>
-
-        <ul
-          v-else-if="alerts.length"
-          class="divide-y divide-border-hair"
-        >
-          <li
-            v-for="alert in alerts"
-            :key="alert.id"
-            class="flex items-center justify-between gap-3 px-4 py-3"
+          <div
+            v-else-if="!showAlertForm"
+            class="px-4 py-8 text-center text-sm text-text-muted"
           >
-            <div class="min-w-0 flex-1">
-              <p class="truncate font-mono text-xs text-text-primary">
-                {{ alert.condition.hash.slice(0, 8) }}…
-              </p>
-              <p class="mt-0.5 text-2xs text-text-muted">
-                {{ alert.symbolId ? `Symbol: ${alert.symbolId.slice(0, 8)}…` : 'All symbols' }}
-                <span
-                  v-if="alert.lastFiredAt"
-                  class="ml-2"
-                >Fired: {{ new Date(alert.lastFiredAt).toLocaleDateString() }}</span>
-              </p>
-            </div>
-            <div class="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                class="rounded border px-2 py-0.5 text-2xs transition-colors"
-                :class="
-                  alert.active
-                    ? 'border-bull/30 bg-bull/10 text-bull hover:bg-bull/20'
-                    : 'border-border-hair text-text-muted hover:border-border-strong'
-                "
-                @click="toggleAlert(alert)"
-              >
-                {{ alert.active ? 'Active' : 'Paused' }}
-              </button>
-              <button
-                type="button"
-                class="rounded border border-bear/30 px-2 py-0.5 text-2xs text-bear transition-colors hover:bg-bear/10"
-                @click="deleteAlert(alert.id)"
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        </ul>
+            No alerts yet. Click <strong>+ New Alert</strong> to create one.
+          </div>
 
-        <div
-          v-else-if="!showAlertForm"
-          class="px-4 py-8 text-center text-sm text-text-muted"
-        >
-          No alerts yet. Click <strong>+ New Alert</strong> to create one.
+          <!-- Fired alert feed -->
+          <div class="border-t border-border-hair px-4 py-3">
+            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Fired History
+            </h3>
+            <AlertsAlertFeed />
+          </div>
         </div>
-      </div>
     </div>
   </div>
 </template>

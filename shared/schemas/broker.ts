@@ -64,3 +64,34 @@ export type PerformanceSummary = {
   tradesBySymbol: Array<{ symbol: string, trades: number, pnl: number }>
   equityCurve: Array<{ date: string, cumulativePnl: number }>
 }
+
+export type CalendarPnlDay = {
+  date: string
+  pnl: number
+  trades: number
+}
+
+export type CalendarPnlMonth = {
+  year: number
+  month: number
+  totalPnl: number
+  days: CalendarPnlDay[]
+}
+
+export type CalendarPnlData = {
+  months: CalendarPnlMonth[]
+}
+
+export type AttributionRow = {
+  label: string
+  trades: number
+  pnl: number
+  winRate: number | null
+}
+
+export type AttributionData = {
+  bySymbol: AttributionRow[]
+  bySetupTag: AttributionRow[]
+  byWeekday: AttributionRow[]
+  bySession: AttributionRow[]
+}

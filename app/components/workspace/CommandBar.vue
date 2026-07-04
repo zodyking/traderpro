@@ -1,7 +1,11 @@
 <script setup lang="ts">
 const connection = useLiveChannel()
+const palette = useCommandPalette()
 const providerStatus = ref<'healthy' | 'delayed' | 'gapped' | 'untrusted' | 'unavailable'>('healthy')
 const providerMessage = ref<string>()
+const symbolSearchRef = ref<{ focus: () => void } | null>(null)
+
+const aiCredits = ref<{ used: number; limit: number } | null>(null)
 
 onMounted(async () => {
   connection.connect()
@@ -18,7 +22,32 @@ onMounted(async () => {
     providerStatus.value = 'unavailable'
     providerMessage.value = 'Provider status unavailable'
   }
+
+  try {
+    const usage = await $fetch<{
+      usage: { aiCredits: { used: number; limit: number } }
+    }>('/api/me/usage')
+    aiCredits.value = usage.usage.aiCredits
+  }
+  catch {
+    // non-critical
+  }
+
+  window.addEventListener('keydown', onGlobalKey)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKey)
+})
+
+function onGlobalKey(e: KeyboardEvent) {
+  const target = e.target as HTMLElement
+  const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+  if (e.key === '/' && !inInput && !(e.metaKey || e.ctrlKey)) {
+    e.preventDefault()
+    symbolSearchRef.value?.focus()
+  }
+}
 
 const statusLabel = computed(() => {
   switch (connection.status.value) {
@@ -46,12 +75,26 @@ const statusVariant = computed(() => {
   }
 })
 
+const aiCreditsRemaining = computed(() => {
+  if (!aiCredits.value) return null
+  return aiCredits.value.limit - aiCredits.value.used
+})
+
+const aiCreditsBadgeVariant = computed(() => {
+  if (aiCreditsRemaining.value === null) return 'default' as const
+  const pct = aiCreditsRemaining.value / (aiCredits.value?.limit || 1)
+  if (pct <= 0.1) return 'bear' as const
+  if (pct <= 0.3) return 'warn' as const
+  return 'default' as const
+})
+
 function onSymbolSelect(symbol: { id: string }) {
   const workspace = useWorkspaceStore()
   workspace.selectSymbol(symbol.id)
   navigateTo('/app/chart')
 }
 </script>
+
 
 <template>
   <header
@@ -64,7 +107,7 @@ function onSymbolSelect(symbol: { id: string }) {
     </div>
 
     <div class="flex flex-1 items-center justify-center px-4">
-      <WorkspaceSymbolSearch @select="onSymbolSelect" />
+      <WorkspaceSymbolSearch ref="symbolSearchRef" @select="onSymbolSelect" />
     </div>
 
     <div class="flex shrink-0 items-center gap-3">
@@ -75,14 +118,38 @@ function onSymbolSelect(symbol: { id: string }) {
       />
       <UiBadge :label="statusLabel" :variant="statusVariant" />
 
+      <NuxtLink
+        v-if="aiCreditsRemaining !== null"
+        to="/app/settings"
+        class="hidden items-center gap-1 rounded-md border px-2 py-1 text-2xs font-medium transition-colors sm:flex"
+        :class="
+          aiCreditsBadgeVariant === 'bear'
+            ? 'border-bear/40 bg-bear/10 text-bear'
+            : aiCreditsBadgeVariant === 'warn'
+              ? 'border-warn/40 bg-warn/10 text-warn'
+              : 'border-border-hair text-text-muted hover:bg-bg-raised hover:text-text-secondary'
+        "
+        title="AI credits remaining — click to view usage"
+      >
+        <svg class="size-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z" />
+        </svg>
+        {{ aiCreditsRemaining }} AI cr
+      </NuxtLink>
+
       <button
         type="button"
-        class="flex size-8 items-center justify-center rounded-md border border-border-hair text-text-muted transition-colors hover:bg-bg-raised hover:text-text-secondary"
+        class="flex h-8 items-center gap-1.5 rounded-md border border-border-hair px-2.5 text-xs text-text-secondary transition-colors hover:bg-bg-raised hover:text-text-primary"
         aria-label="Open command palette"
+        title="Command palette (⌘K)"
+        @click="palette.toggle()"
       >
-        <svg class="size-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M2 4h12v1.5H2V4zm0 3.25h12V8.75H2V7.25zm0 3.25h8V12H2v-1.5z" />
+        <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="6.5" cy="6.5" r="4" />
+          <path d="M11 11l3 3" stroke-linecap="round" />
         </svg>
+        <span class="hidden sm:inline">Search</span>
+        <kbd class="ml-1 hidden rounded border border-border-hair px-1 font-mono text-2xs text-text-muted lg:inline">⌘K</kbd>
       </button>
 
       <button

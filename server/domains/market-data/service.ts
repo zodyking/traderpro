@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import type { AssetClass, CandleInterval, ProviderStatus } from '../../../shared/types/market'
-import { providers, symbols } from '../../../db/schema'
+import { candles, providers, symbols } from '../../../db/schema'
 import { useDb } from '../../utils/db'
 import { useRedis } from '../../utils/redis'
 import { createMarketDataProvider } from './index'
@@ -186,6 +186,34 @@ export async function getCandles(input: {
       ...candle,
       symbolId: input.symbolId,
     })),
+  }
+
+  // Persist fetched candles to DB so historical data accumulates over time.
+  // Conflicts on PK (symbol_id, interval, time) are silently ignored.
+  try {
+    if (payload.candles.length > 0) {
+      const db = useDb()
+      await db
+        .insert(candles)
+        .values(
+          payload.candles.map((c) => ({
+            symbolId: input.symbolId,
+            interval: input.interval,
+            time: new Date(c.time as string),
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume ?? null,
+            source: symbol.providerId,
+            qualityFlags: [] as string[],
+          })),
+        )
+        .onConflictDoNothing()
+    }
+  }
+  catch {
+    // Persistence is best-effort; never block candle delivery
   }
 
   try {

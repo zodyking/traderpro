@@ -6,7 +6,9 @@ const navItems = [
   { label: 'Chart', to: '/app/chart', icon: 'chart' },
   { label: 'Strategy', to: '/app/strategy', icon: 'strategy' },
   { label: 'Backtest', to: '/app/backtest', icon: 'backtest' },
+  { label: 'Broker', to: '/app/broker', icon: 'broker' },
   { label: 'Journal', to: '/app/journal', icon: 'journal' },
+  { label: 'Learning', to: '/app/learning', icon: 'learning' },
   { label: 'Settings', to: '/app/settings', icon: 'settings' },
 ] as const
 
@@ -60,9 +62,19 @@ function isActive(to: string) {
               <path d="M4 4v12h12" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M7 13l3-3 2 2 4-5" stroke-linecap="round" stroke-linejoin="round" />
             </template>
+            <template v-else-if="item.icon === 'broker'">
+              <rect x="3" y="12" width="3" height="5" rx="0.5" />
+              <rect x="8.5" y="8" width="3" height="9" rx="0.5" />
+              <rect x="14" y="5" width="3" height="12" rx="0.5" />
+              <path d="M4.5 11l5-5 3 3 4.5-5" stroke-linecap="round" stroke-linejoin="round" />
+            </template>
             <template v-else-if="item.icon === 'journal'">
               <rect x="4" y="3" width="12" height="14" rx="1" />
               <path d="M7 7h6M7 10h6M7 13h4" stroke-linecap="round" />
+            </template>
+            <template v-else-if="item.icon === 'learning'">
+              <path d="M10 3L2 7l8 4 8-4-8-4z" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M2 7v5c2.5 2 5.5 3 8 3s5.5-1 8-3V7" stroke-linecap="round" stroke-linejoin="round" />
             </template>
             <template v-else-if="item.icon === 'settings'">
               <circle cx="10" cy="10" r="2.5" />

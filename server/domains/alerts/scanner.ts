@@ -3,6 +3,7 @@ import { getCandles } from '../market-data/service'
 import { checkUsage } from '../billing/entitlements'
 import { getActiveAlertsForUser, markAlertFired } from './service'
 import { evaluateCompiledCondition } from './evaluator'
+import { useRedis } from '../../utils/redis'
 
 export type ScanMatch = {
   alertId: string
@@ -98,6 +99,16 @@ export async function scanSymbols(
           firedAt: now,
         })
         await markAlertFired(alert.id)
+        try {
+          const redis = useRedis()
+          const payload = JSON.stringify({ alertId: alert.id, symbolId, firedAt: now })
+          await redis.publish(`alerts.user.${userId}`, payload)
+          await redis.lpush(`alerts.user.${userId}:recent`, payload)
+          await redis.ltrim(`alerts.user.${userId}:recent`, 0, 49)
+        }
+        catch {
+          // Redis publish is best-effort; don't fail the scan
+        }
       }
     }
   }

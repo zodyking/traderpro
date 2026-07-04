@@ -147,6 +147,12 @@ function handleImported() {
               Account management settings coming soon.
             </p>
           </UiPanel>
+
+          <div class="mt-4">
+            <UiPanel title="Plan & Usage">
+              <BillingUsageMeter />
+            </UiPanel>
+          </div>
         </div>
       </div>
     </div>

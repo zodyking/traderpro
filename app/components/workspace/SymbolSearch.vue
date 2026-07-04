@@ -62,6 +62,10 @@ async function pick(symbol: (typeof results.value)[number]) {
 function onFocus() {
   if (results.value.length) open.value = true
 }
+
+const inputRef = ref<HTMLInputElement>()
+
+defineExpose({ focus: () => inputRef.value?.focus() })
 </script>
 
 <template>
@@ -79,6 +83,7 @@ function onFocus() {
     </svg>
 
     <input
+      ref="inputRef"
       v-model="query"
       type="search"
       placeholder="Search symbols…"

@@ -52,6 +52,13 @@ async function replayLatest(channel: string, peer: Peer) {
         peer.send(JSON.stringify({ channel, payload: JSON.parse(latest) }))
       }
     }
+
+    if (parts[0] === 'alerts' && parts[1] === 'user' && parts.length === 3) {
+      const recent = await redis.lrange(`alerts.user.${parts[2]}:recent`, 0, 19)
+      for (const entry of recent.reverse()) {
+        peer.send(JSON.stringify({ channel, payload: JSON.parse(entry) }))
+      }
+    }
   }
   catch {
     // ignore replay failures

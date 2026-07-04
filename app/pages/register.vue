@@ -23,7 +23,7 @@ async function onSubmit() {
         password: password.value,
       },
     })
-    await navigateTo('/app')
+    await navigateTo('/app/onboarding')
   }
   catch (err: unknown) {
     const fetchError = err as { data?: { statusMessage?: string }, message?: string }

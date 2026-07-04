@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import type {
+  AttributionData,
   BrokerConnectionRow,
+  CalendarPnlData,
   ExecutionRow,
   PerformanceSummary,
 } from '#shared/schemas/broker'
@@ -8,23 +10,30 @@ import { BROKER_TYPES } from '#shared/schemas/broker'
 
 export { BROKER_TYPES }
 
-export type { BrokerConnectionRow, ExecutionRow, PerformanceSummary }
+export type { AttributionData, BrokerConnectionRow, CalendarPnlData, ExecutionRow, PerformanceSummary }
 
 export const useBrokerStore = defineStore('broker', () => {
   const connections = ref<BrokerConnectionRow[]>([])
   const executions = ref<ExecutionRow[]>([])
   const performance = ref<PerformanceSummary | null>(null)
+  const calendar = ref<CalendarPnlData | null>(null)
+  const attribution = ref<AttributionData | null>(null)
 
   const connectionsLoading = ref(false)
   const executionsLoading = ref(false)
   const performanceLoading = ref(false)
+  const calendarLoading = ref(false)
+  const attributionLoading = ref(false)
   const importLoading = ref(false)
 
   const connectionsError = ref<string | null>(null)
   const executionsError = ref<string | null>(null)
   const performanceError = ref<string | null>(null)
+  const calendarError = ref<string | null>(null)
+  const attributionError = ref<string | null>(null)
   const importError = ref<string | null>(null)
   const importResult = ref<{ inserted: number, skipped: number, parseErrors: Array<{ line: number, message: string }> } | null>(null)
+  const unresolvedSymbols = ref<string[]>([])
 
   const selectedAccountId = ref<string | null>(null)
 
@@ -72,10 +81,43 @@ export const useBrokerStore = defineStore('broker', () => {
     }
   }
 
+  async function fetchCalendar(accountId?: string) {
+    calendarLoading.value = true
+    calendarError.value = null
+    try {
+      calendar.value = await $fetch<CalendarPnlData>('/api/broker/calendar', {
+        query: accountId ? { accountId } : {},
+      })
+    }
+    catch (e: unknown) {
+      calendarError.value = extractMessage(e)
+    }
+    finally {
+      calendarLoading.value = false
+    }
+  }
+
+  async function fetchAttribution(accountId?: string) {
+    attributionLoading.value = true
+    attributionError.value = null
+    try {
+      attribution.value = await $fetch<AttributionData>('/api/broker/attribution', {
+        query: accountId ? { accountId } : {},
+      })
+    }
+    catch (e: unknown) {
+      attributionError.value = extractMessage(e)
+    }
+    finally {
+      attributionLoading.value = false
+    }
+  }
+
   async function importCsv(payload: { broker: string, label: string, csv: string }) {
     importLoading.value = true
     importError.value = null
     importResult.value = null
+    unresolvedSymbols.value = []
     try {
       const result = await $fetch<{
         connectionId: string
@@ -83,6 +125,7 @@ export const useBrokerStore = defineStore('broker', () => {
         inserted: number
         skipped: number
         parseErrors: Array<{ line: number, message: string }>
+        unresolvedSymbols: string[]
       }>('/api/broker/import', {
         method: 'POST',
         body: payload,
@@ -92,6 +135,7 @@ export const useBrokerStore = defineStore('broker', () => {
         skipped: result.skipped,
         parseErrors: result.parseErrors,
       }
+      unresolvedSymbols.value = result.unresolvedSymbols ?? []
       await fetchConnections()
       await fetchPerformance(selectedAccountId.value ?? undefined)
       await fetchExecutions(selectedAccountId.value ? { accountId: selectedAccountId.value } : {})
@@ -106,6 +150,13 @@ export const useBrokerStore = defineStore('broker', () => {
     }
   }
 
+  async function mapSymbols(mappings: Array<{ rawSymbol: string, symbolId: string }>) {
+    await $fetch('/api/broker/map-symbols', { method: 'POST', body: { mappings } })
+    unresolvedSymbols.value = unresolvedSymbols.value.filter(
+      s => !mappings.some(m => m.rawSymbol === s),
+    )
+  }
+
   function selectAccount(id: string | null) {
     selectedAccountId.value = id
   }
@@ -114,20 +165,30 @@ export const useBrokerStore = defineStore('broker', () => {
     connections,
     executions,
     performance,
+    calendar,
+    attribution,
     connectionsLoading,
     executionsLoading,
     performanceLoading,
+    calendarLoading,
+    attributionLoading,
     importLoading,
     connectionsError,
     executionsError,
     performanceError,
+    calendarError,
+    attributionError,
     importError,
     importResult,
+    unresolvedSymbols,
     selectedAccountId,
     fetchConnections,
     fetchExecutions,
     fetchPerformance,
+    fetchCalendar,
+    fetchAttribution,
     importCsv,
+    mapSymbols,
     selectAccount,
   }
 })
@@ -137,3 +198,4 @@ function extractMessage(e: unknown): string {
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: string }).message)
   return 'An unexpected error occurred'
 }
+

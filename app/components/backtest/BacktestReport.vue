@@ -82,6 +82,27 @@ const qualityWarnings = computed(() => props.metrics?.qualityWarnings ?? [])
       </ul>
     </div>
 
+    <div
+      v-if="props.metrics && props.metrics.tradeCount < 30"
+      class="flex items-start gap-3 rounded-lg border border-accent/30 bg-accent/5 px-4 py-3"
+    >
+      <svg class="mt-0.5 size-4 shrink-0 text-accent" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3.25a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0V5.5A.75.75 0 018 4.75zm0 7a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+      </svg>
+      <div>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+            Exploratory
+          </span>
+          <span class="text-sm font-medium text-text-primary">Low-trade-count result</span>
+        </span>
+        <p class="mt-0.5 text-xs text-text-secondary">
+          This backtest has only <strong>{{ props.metrics.tradeCount }}</strong> closed trade{{ props.metrics.tradeCount === 1 ? '' : 's' }}.
+          Statistical metrics are unreliable below 30 trades — treat these results as exploratory only.
+        </p>
+      </div>
+    </div>
+
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <UiMetricCard
         v-for="card in metricCards"

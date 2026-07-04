@@ -1,6 +1,8 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { plans, providers, symbols } from './schema'
+import { hash } from '@node-rs/argon2'
+import { plans, providers, symbols, users, workspaces, watchlists, watchlistSymbols, strategies, strategyVersions } from './schema'
+import { createTrendPullbackRules, createTrendPullbackRiskModel } from '../shared/templates/trend-pullback'
 
 const DEMO_SYMBOLS = [
   {
@@ -127,8 +129,92 @@ async function seed() {
 
   await db.insert(symbols).values([...DEMO_SYMBOLS]).onConflictDoNothing()
 
+  // Demo user
+  const DEMO_USER_ID = '01930000-0000-7000-8000-000000000100'
+  const DEMO_WORKSPACE_ID = '01930000-0000-7000-8000-000000000200'
+  const DEMO_WATCHLIST_ID = '01930000-0000-7000-8000-000000000300'
+  const DEMO_STRATEGY_ID = '01930000-0000-7000-8000-000000000400'
+  const DEMO_VERSION_ID = '01930000-0000-7000-8000-000000000500'
+
+  const passwordHash = await hash('demo1234', {
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  })
+
+  await db
+    .insert(users)
+    .values({
+      id: DEMO_USER_ID,
+      email: 'demo@axiomedge.app',
+      passwordHash,
+      displayName: 'Demo Trader',
+      experience: 'developing',
+      uiMode: 'novice',
+    })
+    .onConflictDoNothing()
+
+  await db
+    .insert(workspaces)
+    .values({
+      id: DEMO_WORKSPACE_ID,
+      userId: DEMO_USER_ID,
+      name: 'Main Workspace',
+      isDefault: true,
+      layout: { chartInterval: '1h', watchlistRailOpen: true },
+    })
+    .onConflictDoNothing()
+
+  await db
+    .insert(watchlists)
+    .values({
+      id: DEMO_WATCHLIST_ID,
+      userId: DEMO_USER_ID,
+      name: 'My Watchlist',
+      sort: 0,
+    })
+    .onConflictDoNothing()
+
+  const watchlistSymbolRows = [
+    { symbolId: '01930000-0000-7000-8000-000000000001', sort: 0 }, // AAPL
+    { symbolId: '01930000-0000-7000-8000-000000000004', sort: 1 }, // MSFT
+    { symbolId: '01930000-0000-7000-8000-000000000002', sort: 2 }, // SPY
+  ]
+
+  for (const row of watchlistSymbolRows) {
+    await db
+      .insert(watchlistSymbols)
+      .values({ watchlistId: DEMO_WATCHLIST_ID, ...row })
+      .onConflictDoNothing()
+  }
+
+  await db
+    .insert(strategies)
+    .values({
+      id: DEMO_STRATEGY_ID,
+      userId: DEMO_USER_ID,
+      name: 'Trend Pullback — Demo',
+      assetClass: 'stock',
+      timeframe: '1h',
+    })
+    .onConflictDoNothing()
+
+  await db
+    .insert(strategyVersions)
+    .values({
+      id: DEMO_VERSION_ID,
+      strategyId: DEMO_STRATEGY_ID,
+      version: 1,
+      rules: createTrendPullbackRules(),
+      riskModel: createTrendPullbackRiskModel(),
+      filters: {},
+      assumptions: {},
+      note: 'Initial version from onboarding template',
+    })
+    .onConflictDoNothing()
+
   await connection.end()
-  console.log('Seed complete: plans, tradingview provider, demo symbols')
+  console.log('Seed complete: plans, tradingview provider, demo symbols, demo user + workspace + watchlist + strategy')
 }
 
 seed().catch((error) => {

@@ -3,7 +3,10 @@ import {
   createTrendPullbackRiskModel,
   createTrendPullbackRules,
   TREND_PULLBACK_NAME,
-} from '#shared/templates/trend-pullback'
+  STRATEGY_TEMPLATES,
+  getTemplateById,
+} from '#shared/templates/index'
+import type { StrategyTemplateId } from '#shared/templates/index'
 import type { RiskModel, RuleAst } from '#shared/types/strategy'
 import { validateSignal } from '~/utils/strategy-conditions'
 
@@ -59,11 +62,12 @@ export const useStrategyStore = defineStore('strategy', () => {
     versions.value.find((version) => version.id === activeVersionId.value) ?? null,
   )
 
-  function resetDraftFromTemplate() {
+  function resetDraftFromTemplate(templateId?: StrategyTemplateId) {
+    const template = templateId ? getTemplateById(templateId) : undefined
     suppressDirty = true
-    draftRules.value = createTrendPullbackRules()
-    draftRiskModel.value = createTrendPullbackRiskModel()
-    draftName.value = TREND_PULLBACK_NAME
+    draftRules.value = template ? template.createRules() : createTrendPullbackRules()
+    draftRiskModel.value = template ? template.createRiskModel() : createTrendPullbackRiskModel()
+    draftName.value = template ? template.name : TREND_PULLBACK_NAME
     isDirty.value = false
     nextTick(() => {
       suppressDirty = false
@@ -245,6 +249,7 @@ export const useStrategyStore = defineStore('strategy', () => {
     saving,
     error,
     isDirty,
+    templates: STRATEGY_TEMPLATES,
     loadStrategies,
     createStrategy,
     saveVersion,

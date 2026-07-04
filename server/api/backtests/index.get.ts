@@ -3,7 +3,7 @@ import { backtestRuns } from '../../../db/schema'
 import { useDb } from '../../utils/db'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireUser(event)
+  const user = await requireUserOrApiKey(event)
   const db = useDb()
 
   const runs = await db

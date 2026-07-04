@@ -6,7 +6,7 @@ import { apiKeys } from '../../../db/schema'
 import type { ApiKeyCreateInput, ApiKeyCreated, ApiKeyRow } from '../../../shared/schemas/api-keys'
 import { useDb } from '../../utils/db'
 
-const KEY_PREFIX = 'axk_'
+const KEY_PREFIX = 'ae_'
 
 const ARGON2_OPTIONS = {
   memoryCost: 19456,
@@ -84,4 +84,34 @@ export async function revokeApiKey(userId: string, keyId: string): Promise<void>
 export async function verifyApiKey(plaintext: string, keyHash: string): Promise<boolean> {
   const { verify } = await import('@node-rs/argon2')
   return verify(keyHash, plaintext, ARGON2_OPTIONS)
+}
+
+export async function authenticateApiKey(
+  plaintext: string,
+): Promise<{ userId: string, apiKeyId: string } | null> {
+  if (!plaintext.startsWith(KEY_PREFIX)) {
+    return null
+  }
+
+  const db = useDb()
+  const rows = await db
+    .select()
+    .from(apiKeys)
+    .where(isNull(apiKeys.revokedAt))
+
+  for (const row of rows) {
+    if (await verifyApiKey(plaintext, row.keyHash)) {
+      await db
+        .update(apiKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(apiKeys.id, row.id))
+
+      return {
+        userId: row.userId,
+        apiKeyId: row.id,
+      }
+    }
+  }
+
+  return null
 }

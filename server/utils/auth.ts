@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { mfaMethods, users } from '../../db/schema'
+import { getApiKeyUser } from './api-key-context'
 import { useDb } from './db'
 
 export async function requireUser(event: H3Event) {
@@ -15,6 +16,26 @@ export async function requireUser(event: H3Event) {
   }
 
   return session.user
+}
+
+export async function requireUserOrApiKey(event: H3Event) {
+  const session = await getUserSession(event)
+  if (session.user) {
+    return session.user
+  }
+
+  const apiKey = getApiKeyUser(event)
+  if (apiKey) {
+    const user = await getActiveUserById(apiKey.userId)
+    if (user) {
+      return toSessionUser(user)
+    }
+  }
+
+  throw createError({
+    statusCode: 401,
+    statusMessage: 'Unauthorized',
+  })
 }
 
 export async function findUserByEmail(email: string) {

@@ -10,6 +10,7 @@ const primaryTabs = [
 ] as const
 
 const moreItems = [
+  { label: 'Scanner', to: '/app/scanner', icon: 'scanner' },
   { label: 'Broker', to: '/app/broker', icon: 'broker' },
   { label: 'Backtest', to: '/app/backtest', icon: 'backtest' },
   { label: 'Learning', to: '/app/learning', icon: 'learning' },

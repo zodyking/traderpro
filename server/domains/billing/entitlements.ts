@@ -1,4 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 import { plans, subscriptions, usageCounters } from '../../../db/schema/billing'
 import { useDb } from '../../utils/db'
 
@@ -95,4 +96,30 @@ export async function checkAiCredits(
   userId: string,
 ): Promise<{ allowed: boolean; used: number; limit: number }> {
   return checkUsage(userId, 'aiCredits')
+}
+
+export async function activateSubscription(
+  userId: string,
+  planId: string,
+  stripeSubId: string,
+): Promise<void> {
+  const db = useDb()
+
+  await db
+    .insert(subscriptions)
+    .values({
+      id: uuidv7(),
+      userId,
+      planId,
+      status: 'active',
+      providerRef: stripeSubId,
+    })
+    .onConflictDoUpdate({
+      target: subscriptions.userId,
+      set: {
+        planId,
+        status: 'active',
+        providerRef: stripeSubId,
+      },
+    })
 }

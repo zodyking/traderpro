@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
   const body = checkoutSchema.parse(await readBody(event).catch(() => ({})))
 
-  const session = await createCheckoutSession(user.id, body.planId)
+  const session = await createCheckoutSession(user.id, body.planId, user.email)
 
   return session
 })

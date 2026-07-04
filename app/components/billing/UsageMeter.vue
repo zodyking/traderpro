@@ -13,10 +13,21 @@ type UsageData = {
   }
 }
 
+type UpgradePlanId = 'starter' | 'pro'
+
+const route = useRoute()
+const router = useRouter()
+
 const data = ref<UsageData | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
-const upgrading = ref(false)
+const upgrading = ref<UpgradePlanId | null>(null)
+const checkoutNotice = ref<string | null>(null)
+
+const upgradePlans: { id: UpgradePlanId; label: string }[] = [
+  { id: 'starter', label: 'Starter' },
+  { id: 'pro', label: 'Pro' },
+]
 
 async function load() {
   loading.value = true
@@ -32,7 +43,23 @@ async function load() {
   }
 }
 
-onMounted(load)
+function handleCheckoutQuery() {
+  const checkout = route.query.checkout
+  if (checkout === 'success') {
+    checkoutNotice.value = 'Payment received. Your plan will update once checkout is confirmed.'
+    void load()
+    void router.replace({ query: { ...route.query, checkout: undefined, session_id: undefined } })
+  }
+  else if (checkout === 'cancelled') {
+    checkoutNotice.value = 'Checkout was cancelled.'
+    void router.replace({ query: { ...route.query, checkout: undefined } })
+  }
+}
+
+onMounted(async () => {
+  handleCheckoutQuery()
+  await load()
+})
 
 const metrics = computed(() => {
   if (!data.value) return []
@@ -67,13 +94,14 @@ function barColor(used: number, limit: number): string {
   return 'bg-accent'
 }
 
-async function upgrade() {
-  upgrading.value = true
+async function upgrade(planId: UpgradePlanId) {
+  upgrading.value = planId
   error.value = null
+  checkoutNotice.value = null
   try {
     const session = await $fetch<{ url: string }>('/api/billing/checkout', {
       method: 'POST',
-      body: { planId: 'starter' },
+      body: { planId },
     })
     if (session.url) {
       window.location.href = session.url
@@ -83,7 +111,7 @@ async function upgrade() {
     error.value = e instanceof Error ? e.message : 'Failed to start checkout'
   }
   finally {
-    upgrading.value = false
+    upgrading.value = null
   }
 }
 </script>
@@ -109,19 +137,33 @@ async function upgrade() {
     </p>
 
     <template v-else-if="data">
+      <p
+        v-if="checkoutNotice"
+        class="mb-3 text-sm text-accent"
+      >
+        {{ checkoutNotice }}
+      </p>
+
       <div class="mb-4 flex items-center justify-between gap-3">
         <p class="text-sm text-text-secondary">
           Plan: <span class="font-medium text-text-primary">{{ data.plan.label }}</span>
         </p>
-        <UiBtn
+        <div
           v-if="data.plan.id === 'free'"
-          variant="secondary"
-          size="sm"
-          :loading="upgrading"
-          @click="upgrade"
+          class="flex items-center gap-2"
         >
-          Upgrade
-        </UiBtn>
+          <UiBtn
+            v-for="plan in upgradePlans"
+            :key="plan.id"
+            variant="secondary"
+            size="sm"
+            :loading="upgrading === plan.id"
+            :disabled="upgrading !== null && upgrading !== plan.id"
+            @click="upgrade(plan.id)"
+          >
+            Upgrade to {{ plan.label }}
+          </UiBtn>
+        </div>
       </div>
 
       <ul class="flex flex-col gap-4">

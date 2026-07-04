@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { IndicatorOverlay } from '#shared/types/indicators'
+
 definePageMeta({
   layout: 'app',
   middleware: 'auth',
@@ -6,6 +8,16 @@ definePageMeta({
 
 const workspace = useWorkspaceStore()
 const intervals = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const
+
+const overlays = ref<IndicatorOverlay[]>([
+  {
+    id: 'ema-20',
+    type: 'ema',
+    params: { period: 20 },
+    color: '#14E0B8',
+    visible: true,
+  },
+])
 
 onMounted(async () => {
   await workspace.loadWatchlists()
@@ -51,10 +63,16 @@ function setIntervalValue(value: typeof intervals[number]) {
         </div>
       </div>
 
+      <ChartIndicatorControls
+        :overlays="overlays"
+        @update:overlays="overlays = $event"
+      />
+
       <ClientOnly>
         <ChartChartPanel
           :symbol-id="workspace.activeSymbolId"
           :interval="workspace.chartInterval ?? '1h'"
+          :overlays="overlays"
         />
       </ClientOnly>
     </div>

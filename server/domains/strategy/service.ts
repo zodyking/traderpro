@@ -10,11 +10,24 @@ import { useDb } from '../../utils/db'
 
 export async function listStrategies(userId: string) {
   const db = useDb()
-  return db
+  const rows = await db
     .select()
     .from(strategies)
     .where(eq(strategies.userId, userId))
     .orderBy(asc(strategies.name))
+
+  const result = []
+  for (const strategy of rows) {
+    const versions = await db
+      .select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.strategyId, strategy.id))
+      .orderBy(desc(strategyVersions.version))
+
+    result.push({ ...strategy, versions })
+  }
+
+  return result
 }
 
 export async function getStrategy(userId: string, strategyId: string) {

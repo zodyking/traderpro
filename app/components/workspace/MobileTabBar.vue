@@ -133,6 +133,10 @@ watch(() => route.path, () => {
               <path d="M4 4v12h12" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M7 13l3-3 2 2 4-5" stroke-linecap="round" stroke-linejoin="round" />
             </template>
+            <template v-else-if="item.icon === 'scanner'">
+              <circle cx="10" cy="10" r="6" />
+              <path d="M10 6v4l2.5 2.5" stroke-linecap="round" />
+            </template>
             <template v-else-if="item.icon === 'broker'">
               <rect x="3" y="12" width="3" height="5" rx="0.5" />
               <rect x="8.5" y="8" width="3" height="9" rx="0.5" />

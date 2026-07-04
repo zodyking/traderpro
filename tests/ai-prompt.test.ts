@@ -1,10 +1,87 @@
 /**
  * Additional edge-case tests for parseAIResult not already covered in ai-packet.test.ts.
  * Covers: non-array field values, raw-prose fallback, markdown code fences,
- * extra unknown keys, whitespace-only input, and large payloads.
+ * extra unknown keys, whitespace-only input, large payloads, and trade entry rendering.
  */
 import { describe, expect, it } from 'vitest'
-import { parseAIResult } from '../server/domains/ai/prompt'
+import { buildPrompt, getSystemPrompt, parseAIResult } from '../server/domains/ai/prompt'
+import type { AIReviewPacket } from '../shared/types/ai'
+
+const tradePacket: AIReviewPacket = {
+  userProfile: {
+    experienceLevel: 'intermediate',
+    assetClasses: ['stock'],
+    riskLimits: {},
+  },
+  tradeEntry: {
+    id: 'entry-1',
+    side: 'long',
+    setupTag: 'breakout',
+    emotion: 'anxious',
+    mistakes: ['chased entry', 'oversized'],
+    planned: { entry: 100, stop: 95, target: 110, size: 50, thesis: 'ORB breakout' },
+    actual: { entry: 101.5, exit: 108, size: 60 },
+    note: 'Entered late after hesitation.',
+    openedAt: '2024-06-01T14:30:00.000Z',
+    closedAt: '2024-06-01T15:45:00.000Z',
+  },
+  dataQuality: { source: 'journal', gaps: 0, warnings: [] },
+  requestedReviewType: 'trade',
+}
+
+describe('buildPrompt - trade entry rendering', () => {
+  it('includes emotion and mistakes when present', () => {
+    const prompt = buildPrompt(tradePacket)
+    expect(prompt).toContain('anxious')
+    expect(prompt).toContain('chased entry')
+    expect(prompt).toContain('oversized')
+  })
+
+  it('renders planned and actual levels', () => {
+    const prompt = buildPrompt(tradePacket)
+    expect(prompt).toContain('**Planned:**')
+    expect(prompt).toContain('Entry: 100')
+    expect(prompt).toContain('Stop: 95')
+    expect(prompt).toContain('Target: 110')
+    expect(prompt).toContain('**Actual:**')
+    expect(prompt).toContain('Entry: 101.5')
+    expect(prompt).toContain('Exit: 108')
+    expect(prompt).toContain('ORB breakout')
+  })
+
+  it('includes trade metadata and notes', () => {
+    const prompt = buildPrompt(tradePacket)
+    expect(prompt).toContain('long')
+    expect(prompt).toContain('breakout')
+    expect(prompt).toContain('Entered late after hesitation.')
+    expect(prompt).toContain('2024-06-01T14:30:00.000Z')
+  })
+
+  it('omits trade section when tradeEntry is absent', () => {
+    const prompt = buildPrompt({ ...tradePacket, tradeEntry: undefined })
+    expect(prompt).not.toContain('## Trade Journal Entry')
+    expect(prompt).not.toContain('**Mistakes:**')
+  })
+})
+
+describe('getSystemPrompt - mode-specific prompts', () => {
+  it('returns risk referee prompt for risk mode', () => {
+    const prompt = getSystemPrompt('risk')
+    expect(prompt).toContain('risk referee')
+    expect(prompt).toContain('JSON')
+  })
+
+  it('returns market explanation prompt for market mode', () => {
+    const prompt = getSystemPrompt('market')
+    expect(prompt).toContain('market structure analyst')
+    expect(prompt).toContain('JSON')
+  })
+
+  it('returns lesson prompt for lesson mode', () => {
+    const prompt = getSystemPrompt('lesson')
+    expect(prompt).toContain('trading educator')
+  })
+})
 
 describe('parseAIResult - additional edge cases', () => {
   it('returns raw text as first observation when no JSON braces are present', () => {

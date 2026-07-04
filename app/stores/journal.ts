@@ -1,0 +1,257 @@
+import { defineStore } from 'pinia'
+
+export type JournalPlanned = {
+  entry?: number
+  stop?: number
+  target?: number
+  size?: number
+  thesis?: string
+}
+
+export type JournalActual = {
+  entry?: number
+  exit?: number
+  size?: number
+}
+
+export type JournalEntry = {
+  id: string
+  userId: string
+  symbolId?: string | null
+  symbolTicker?: string | null
+  strategyVersionId?: string | null
+  side?: 'long' | 'short' | null
+  setupTag?: string | null
+  planned: JournalPlanned
+  actual: JournalActual
+  emotion?: string | null
+  mistakes: string[]
+  note?: string | null
+  screenshots: string[]
+  openedAt?: string | null
+  closedAt?: string | null
+  createdAt: string
+}
+
+export type AIReview = {
+  id: string
+  status: string
+  createdAt: string
+  result?: {
+    observations?: string[]
+    risks?: string[]
+    strengths?: string[]
+    actions?: string[]
+  } | null
+}
+
+type CreateInput = Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'planned' | 'actual' | 'mistakes' | 'screenshots'> & {
+  planned?: JournalPlanned
+  actual?: JournalActual
+  mistakes?: string[]
+  screenshots?: string[]
+}
+
+type UpdateInput = Partial<CreateInput>
+
+export const useJournalStore = defineStore('journal', () => {
+  const entries = ref<JournalEntry[]>([])
+  const total = ref(0)
+  const loading = ref(false)
+  const submitting = ref(false)
+  const error = ref<string | null>(null)
+  const nextCursor = ref<string | null>(null)
+
+  const reviewsByEntryId = ref<Record<string, AIReview[]>>({})
+  const reviewLoading = ref<Record<string, boolean>>({})
+
+  function normalizeEntry(raw: Record<string, unknown>): JournalEntry {
+    return {
+      id: String(raw.id),
+      userId: String(raw.userId),
+      symbolId: raw.symbolId != null ? String(raw.symbolId) : null,
+      symbolTicker: raw.symbolTicker != null ? String(raw.symbolTicker) : null,
+      strategyVersionId: raw.strategyVersionId != null ? String(raw.strategyVersionId) : null,
+      side: (raw.side as 'long' | 'short' | null) ?? null,
+      setupTag: raw.setupTag != null ? String(raw.setupTag) : null,
+      planned: (raw.planned as JournalPlanned) ?? {},
+      actual: (raw.actual as JournalActual) ?? {},
+      emotion: raw.emotion != null ? String(raw.emotion) : null,
+      mistakes: Array.isArray(raw.mistakes) ? raw.mistakes as string[] : [],
+      note: raw.note != null ? String(raw.note) : null,
+      screenshots: Array.isArray(raw.screenshots) ? raw.screenshots as string[] : [],
+      openedAt: raw.openedAt != null
+        ? (raw.openedAt instanceof Date ? raw.openedAt.toISOString() : String(raw.openedAt))
+        : null,
+      closedAt: raw.closedAt != null
+        ? (raw.closedAt instanceof Date ? raw.closedAt.toISOString() : String(raw.closedAt))
+        : null,
+      createdAt: raw.createdAt instanceof Date
+        ? raw.createdAt.toISOString()
+        : String(raw.createdAt),
+    }
+  }
+
+  async function fetchEntries(opts: { symbolId?: string; setupTag?: string; reset?: boolean } = {}) {
+    if (opts.reset) {
+      entries.value = []
+      nextCursor.value = null
+    }
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const query: Record<string, string> = {}
+      if (opts.symbolId) query.symbolId = opts.symbolId
+      if (opts.setupTag) query.setupTag = opts.setupTag
+      if (nextCursor.value && !opts.reset) query.cursor = nextCursor.value
+
+      const data = await $fetch<{ entries: Record<string, unknown>[]; nextCursor: string | null }>(
+        '/api/journal',
+        { query },
+      )
+
+      const normalized = data.entries.map(normalizeEntry)
+      if (opts.reset) {
+        entries.value = normalized
+      }
+      else {
+        entries.value.push(...normalized)
+      }
+      nextCursor.value = data.nextCursor
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Failed to load journal entries'
+    }
+    finally {
+      loading.value = false
+    }
+  }
+
+  async function createEntry(input: CreateInput): Promise<JournalEntry> {
+    submitting.value = true
+    error.value = null
+    try {
+      const raw = await $fetch<Record<string, unknown>>('/api/journal', {
+        method: 'POST',
+        body: input,
+      })
+      const entry = normalizeEntry(raw)
+      entries.value.unshift(entry)
+      return entry
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Failed to create journal entry'
+      throw err
+    }
+    finally {
+      submitting.value = false
+    }
+  }
+
+  async function updateEntry(id: string, input: UpdateInput): Promise<JournalEntry> {
+    submitting.value = true
+    error.value = null
+    try {
+      const raw = await $fetch<Record<string, unknown>>(`/api/journal/${id}`, {
+        method: 'PATCH',
+        body: input,
+      })
+      const updated = normalizeEntry(raw)
+      const idx = entries.value.findIndex(e => e.id === id)
+      if (idx >= 0) entries.value[idx] = updated
+      return updated
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Failed to update journal entry'
+      throw err
+    }
+    finally {
+      submitting.value = false
+    }
+  }
+
+  async function deleteEntry(id: string) {
+    submitting.value = true
+    error.value = null
+    try {
+      await $fetch(`/api/journal/${id}`, { method: 'DELETE' })
+      entries.value = entries.value.filter(e => e.id !== id)
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Failed to delete journal entry'
+      throw err
+    }
+    finally {
+      submitting.value = false
+    }
+  }
+
+  async function requestReview(entryId: string) {
+    reviewLoading.value[entryId] = true
+    try {
+      const raw = await $fetch<Record<string, unknown>>(`/api/journal/${entryId}/review`, {
+        method: 'POST',
+      })
+      const review: AIReview = {
+        id: String(raw.id),
+        status: String(raw.status),
+        createdAt: String(raw.createdAt),
+        result: raw.result as AIReview['result'] ?? null,
+      }
+      if (!reviewsByEntryId.value[entryId]) {
+        reviewsByEntryId.value[entryId] = []
+      }
+      reviewsByEntryId.value[entryId].unshift(review)
+      return review
+    }
+    finally {
+      reviewLoading.value[entryId] = false
+    }
+  }
+
+  async function fetchReviews(entryId: string) {
+    reviewLoading.value[entryId] = true
+    try {
+      const data = await $fetch<Record<string, unknown>[]>(`/api/journal/${entryId}/review`)
+      reviewsByEntryId.value[entryId] = data.map(raw => ({
+        id: String(raw.id),
+        status: String(raw.status),
+        createdAt: String(raw.createdAt),
+        result: raw.result as AIReview['result'] ?? null,
+      }))
+    }
+    finally {
+      reviewLoading.value[entryId] = false
+    }
+  }
+
+  async function uploadScreenshot(file: File): Promise<string> {
+    const form = new FormData()
+    form.append('file', file)
+    const data = await $fetch<{ url: string }>('/api/journal/upload', {
+      method: 'POST',
+      body: form,
+    })
+    return data.url
+  }
+
+  return {
+    entries,
+    total,
+    loading,
+    submitting,
+    error,
+    nextCursor,
+    reviewsByEntryId,
+    reviewLoading,
+    fetchEntries,
+    createEntry,
+    updateEntry,
+    deleteEntry,
+    requestReview,
+    fetchReviews,
+    uploadScreenshot,
+  }
+})

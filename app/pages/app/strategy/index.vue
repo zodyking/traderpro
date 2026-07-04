@@ -187,7 +187,7 @@ async function handleRunBacktest() {
       </div>
 
       <aside class="flex w-full shrink-0 flex-col border-t border-border-hair lg:w-[min(42rem,45%)] lg:border-t-0 lg:border-l">
-        <div class="flex-1 overflow-y-auto p-4">
+        <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
           <ClientOnly>
             <ChartChartPanel
               v-if="workspace.activeSymbolId"
@@ -210,6 +210,17 @@ async function handleRunBacktest() {
               </div>
             </UiPanel>
           </ClientOnly>
+
+          <UiPanel
+            v-if="strategyStore.activeVersionId && !strategyStore.isDirty"
+            title="AI Review"
+          >
+            <AiAIReviewWidget
+              target-type="strategy"
+              :target-id="strategyStore.activeVersionId"
+              label="Strategy Critique"
+            />
+          </UiPanel>
         </div>
       </aside>
     </div>

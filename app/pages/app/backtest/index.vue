@@ -117,6 +117,19 @@ onBeforeUnmount(() => {
         :equity="backtestStore.equity"
         :loading="backtestStore.loading"
       />
+
+      <div
+        v-if="showReport && backtestStore.activeRun?.strategyVersionId"
+        class="mt-4"
+      >
+        <UiPanel title="AI Review">
+          <AiAIReviewWidget
+            target-type="strategy"
+            :target-id="backtestStore.activeRun.strategyVersionId"
+            label="Backtest Critique"
+          />
+        </UiPanel>
+      </div>
     </div>
   </div>
 </template>

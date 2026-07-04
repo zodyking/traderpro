@@ -73,6 +73,18 @@ export interface AIReviewPacket {
     exposure: ExposureSnapshot
     drawdownState: DrawdownState
   }
+  tradeEntry?: {
+    id: string
+    side?: string | null
+    setupTag?: string | null
+    planned?: Record<string, unknown>
+    actual?: Record<string, unknown>
+    emotion?: string | null
+    mistakes?: string[]
+    note?: string | null
+    openedAt?: string
+    closedAt?: string
+  }
   dataQuality: { source: string; gaps: number; warnings: string[] }
   requestedReviewType: 'strategy' | 'trade' | 'risk' | 'lesson'
 }

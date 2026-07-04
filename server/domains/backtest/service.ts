@@ -16,6 +16,7 @@ import { getStrategyVersion } from '../strategy/service'
 import { useDb } from '../../utils/db'
 import { useRedis } from '../../utils/redis'
 import { calculateMetrics } from './metrics'
+import { checkUsage, incrementUsage } from '../billing/entitlements'
 import { enqueueBacktestJob } from './queue'
 import { simulateLongOnly, type SimulatorCandle } from './simulator'
 
@@ -133,11 +134,19 @@ export async function publishProgress(runId: string, event: BacktestProgressEven
   }
 }
 
-export async function checkBacktestUsage(_userId: string): Promise<{ allowed: boolean }> {
-  return { allowed: true }
+export async function checkBacktestUsage(userId: string): Promise<{ allowed: boolean; used: number; limit: number }> {
+  return checkUsage(userId, 'backtestsPerMonth')
 }
 
 export async function enqueueBacktest(userId: string, input: BacktestCreateInput) {
+  const usage = await checkBacktestUsage(userId)
+  if (!usage.allowed) {
+    throw createError({
+      statusCode: 429,
+      statusMessage: `Backtest limit reached (${usage.used}/${usage.limit} this month)`,
+    })
+  }
+
   await getStrategyVersion(userId, input.strategyVersionId)
 
   const runId = uuidv7()
@@ -163,6 +172,7 @@ export async function enqueueBacktest(userId: string, input: BacktestCreateInput
   })
 
   await enqueueBacktestJob(runId)
+  await incrementUsage(userId, 'backtestsPerMonth')
   await publishProgress(runId, { pct: 0, stage: 'queued' })
 
   return { runId }

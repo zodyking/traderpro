@@ -6,6 +6,7 @@ definePageMeta({
 
 const strategyStore = useStrategyStore()
 const workspace = useWorkspaceStore()
+const backtestStore = useBacktestStore()
 
 const validationIssues = computed(() => strategyStore.validate())
 const hasErrors = computed(() => validationIssues.value.some((issue) => issue.level === 'error'))
@@ -71,6 +72,29 @@ function handleSelectVersion(versionId: string) {
     return
   }
   strategyStore.selectVersion(versionId)
+}
+
+const canRunBacktest = computed(() =>
+  Boolean(
+    strategyStore.currentStrategy
+    && strategyStore.activeVersionId
+    && !strategyStore.isDirty
+    && workspace.activeSymbolId
+    && !hasErrors.value,
+  ),
+)
+
+async function handleRunBacktest() {
+  const versionId = strategyStore.activeVersionId
+  const symbolId = workspace.activeSymbolId
+  if (!versionId || !symbolId) return
+
+  const run = await backtestStore.submitBacktest(
+    versionId,
+    symbolId,
+    (workspace.chartInterval ?? '1h') as '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w',
+  )
+  await navigateTo(`/app/backtest?run=${run.id}`)
 }
 </script>
 
@@ -203,8 +227,10 @@ function handleSelectVersion(versionId: string) {
       </div>
 
       <UiBtn
-        disabled
-        title="Backtest runner coming in task 19"
+        :disabled="!canRunBacktest"
+        :loading="backtestStore.submitting"
+        :title="!workspace.activeSymbolId ? 'Select a symbol in Chart workspace' : !canRunBacktest ? 'Save strategy version first' : undefined"
+        @click="handleRunBacktest"
       >
         Run backtest
       </UiBtn>

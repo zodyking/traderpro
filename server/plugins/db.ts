@@ -12,6 +12,13 @@ export function useDbPool() {
   return poolHolder.pool
 }
 
+export function initDbPool(databaseUrl: string) {
+  if (!poolHolder.pool) {
+    poolHolder.pool = postgres(databaseUrl, { max: 10 })
+  }
+  return poolHolder.pool
+}
+
 export default defineNitroPlugin((nitroApp) => {
   const { databaseUrl } = useRuntimeConfig()
 

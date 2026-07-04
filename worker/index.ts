@@ -1,5 +1,8 @@
 import { Worker } from 'bullmq'
 import IORedis from 'ioredis'
+import { initDbPool } from '../server/plugins/db'
+import { initRedis } from '../server/utils/redis'
+import { processBacktestJob } from './backtest-processor'
 
 const QUEUE_NAMES = ['backtest', 'broker-sync', 'ai', 'scan'] as const
 
@@ -11,6 +14,12 @@ function createConnection() {
 }
 
 function createProcessor(queueName: QueueName) {
+  if (queueName === 'backtest') {
+    return async (job: Parameters<typeof processBacktestJob>[0]) => {
+      await processBacktestJob(job)
+    }
+  }
+
   return async (job: { id?: string; name: string }) => {
     console.log(`[worker:${queueName}] not implemented — job ${job.id ?? 'unknown'} (${job.name})`)
   }
@@ -34,6 +43,16 @@ function startWorkers(connection: IORedis) {
 }
 
 async function main() {
+  const databaseUrl = process.env.DATABASE_URL
+  if (databaseUrl) {
+    initDbPool(databaseUrl)
+  }
+  else {
+    console.warn('[worker] DATABASE_URL is not configured')
+  }
+
+  initRedis(process.env.REDIS_URL ?? 'redis://127.0.0.1:6379')
+
   const connection = createConnection()
   const workers = startWorkers(connection)
 

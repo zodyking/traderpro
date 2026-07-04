@@ -4,10 +4,11 @@ useKeyboardShortcuts()
 
 <template>
   <div class="min-h-dvh bg-bg-base">
-    <WorkspaceNavRail />
+    <WorkspaceNavRail class="hidden md:flex" />
     <WorkspaceCommandBar />
     <WorkspaceCommandPalette />
-    <main class="ml-rail pt-command-bar">
+    <WorkspaceMobileTabBar />
+    <main class="pt-command-bar pb-tab-bar md:ml-rail md:pb-0">
       <slot />
     </main>
   </div>

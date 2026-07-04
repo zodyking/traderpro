@@ -165,6 +165,14 @@
 }
 
 @layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pb-tab-bar {
+    padding-bottom: calc(var(--spacing-14) + env(safe-area-inset-bottom, 0px));
+  }
+
   .shimmer {
     background: linear-gradient(
       90deg,

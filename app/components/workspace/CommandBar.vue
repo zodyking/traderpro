@@ -98,7 +98,7 @@ function onSymbolSelect(symbol: { id: string }) {
 
 <template>
   <header
-    class="fixed top-0 right-0 left-rail z-30 flex h-command-bar items-center gap-4 border-b border-border-hair bg-bg-surface px-4"
+    class="fixed top-0 right-0 left-0 z-30 flex h-command-bar items-center gap-4 border-b border-border-hair bg-bg-surface px-4 md:left-rail"
   >
     <div class="flex shrink-0 items-center gap-3">
       <span class="font-mono text-sm font-bold tracking-[0.2em] text-text-primary">

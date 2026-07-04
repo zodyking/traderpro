@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, gte, lte } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
-import type { AssetClass, CandleInterval, ProviderStatus } from '../../../shared/types/market'
-import { candles, providers, symbols } from '../../../db/schema'
+import type { AssetClass, CandleInterval, ProviderStatus, QuoteEvent } from '../../../shared/types/market'
+import { candles, providers, quoteSnapshots, symbols } from '../../../db/schema'
 import { useDb } from '../../utils/db'
 import { useRedis } from '../../utils/redis'
 import { createMarketDataProvider } from './index'
@@ -135,6 +135,117 @@ export async function getSymbolById(id: string): Promise<SymbolRecord | null> {
   }
 }
 
+export function isCandleCoverageSufficient(
+  rows: Array<{ time: Date }>,
+  from: string,
+  to: string,
+): boolean {
+  if (rows.length === 0) return false
+
+  const fromMs = new Date(from).getTime()
+  const toMs = new Date(to).getTime()
+  const rangeMs = Math.max(0, toMs - fromMs)
+  if (rangeMs === 0) return rows.length > 0
+
+  const firstMs = rows[0]!.time.getTime()
+  const lastMs = rows[rows.length - 1]!.time.getTime()
+  const edgeSlack = Math.min(rangeMs * 0.05, 24 * 60 * 60 * 1000)
+
+  return firstMs <= fromMs + edgeSlack
+    && lastMs >= toMs - edgeSlack
+    && (lastMs - firstMs) >= rangeMs * 0.9
+}
+
+async function fetchCandlesFromDb(input: {
+  symbolId: string
+  interval: CandleInterval
+  from: string
+  to: string
+}) {
+  const db = useDb()
+  return db
+    .select()
+    .from(candles)
+    .where(
+      and(
+        eq(candles.symbolId, input.symbolId),
+        eq(candles.interval, input.interval),
+        gte(candles.time, new Date(input.from)),
+        lte(candles.time, new Date(input.to)),
+      ),
+    )
+    .orderBy(asc(candles.time))
+}
+
+function buildCandlePayload(
+  symbolId: string,
+  interval: CandleInterval,
+  rows: Array<{
+    time: Date
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number | null
+  }>,
+) {
+  return {
+    symbolId,
+    interval,
+    candles: rows.map((row) => ({
+      symbolId,
+      interval,
+      time: row.time.toISOString(),
+      open: row.open,
+      high: row.high,
+      low: row.low,
+      close: row.close,
+      volume: row.volume ?? undefined,
+    })),
+  }
+}
+
+async function cacheCandlePayload(
+  redisKey: string,
+  symbolId: string,
+  interval: CandleInterval,
+  payload: ReturnType<typeof buildCandlePayload>,
+) {
+  try {
+    const redis = useRedis()
+    await redis.setex(redisKey, CANDLE_TTL_SECONDS, JSON.stringify(payload))
+    await redis.set(
+      cacheKey(['candle', 'latest', symbolId, interval]),
+      JSON.stringify(payload.candles.at(-1) ?? null),
+    )
+  }
+  catch {
+    // ignore
+  }
+}
+
+export async function persistQuoteSnapshot(quote: QuoteEvent): Promise<void> {
+  if (!quote.symbolId || !quote.time) return
+
+  try {
+    const db = useDb()
+    await db
+      .insert(quoteSnapshots)
+      .values({
+        symbolId: quote.symbolId,
+        time: new Date(quote.time),
+        bid: quote.bid ?? null,
+        ask: quote.ask ?? null,
+        last: quote.last ?? null,
+        volumeDay: quote.volumeDay ?? null,
+      })
+      .onConflictDoNothing()
+  }
+  catch {
+    // Persistence is best-effort
+  }
+}
+
 export async function getCandles(input: {
   symbolId: string
   interval: CandleInterval
@@ -165,6 +276,18 @@ export async function getCandles(input: {
     // continue without cache
   }
 
+  try {
+    const dbRows = await fetchCandlesFromDb(input)
+    if (isCandleCoverageSufficient(dbRows, input.from, input.to)) {
+      const payload = buildCandlePayload(input.symbolId, input.interval, dbRows)
+      await cacheCandlePayload(redisKey, input.symbolId, input.interval, payload)
+      return payload
+    }
+  }
+  catch {
+    // DB read optional in some environments
+  }
+
   const provider = createMarketDataProvider()
   const series = await provider.getHistoricalCandles({
     symbol: {
@@ -179,14 +302,18 @@ export async function getCandles(input: {
     to: input.to,
   })
 
-  const payload = {
-    symbolId: input.symbolId,
-    interval: input.interval,
-    candles: series.candles.map((candle) => ({
-      ...candle,
-      symbolId: input.symbolId,
+  const payload = buildCandlePayload(
+    input.symbolId,
+    input.interval,
+    series.candles.map((candle) => ({
+      time: new Date(candle.time),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume ?? null,
     })),
-  }
+  )
 
   // Persist fetched candles to DB so historical data accumulates over time.
   // Conflicts on PK (symbol_id, interval, time) are silently ignored.
@@ -216,17 +343,7 @@ export async function getCandles(input: {
     // Persistence is best-effort; never block candle delivery
   }
 
-  try {
-    const redis = useRedis()
-    await redis.setex(redisKey, CANDLE_TTL_SECONDS, JSON.stringify(payload))
-    await redis.set(
-      cacheKey(['candle', 'latest', input.symbolId, input.interval]),
-      JSON.stringify(payload.candles.at(-1) ?? null),
-    )
-  }
-  catch {
-    // ignore
-  }
+  await cacheCandlePayload(redisKey, input.symbolId, input.interval, payload)
 
   return payload
 }

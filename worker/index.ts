@@ -3,10 +3,16 @@ import IORedis from 'ioredis'
 import { initDbPool } from '../server/plugins/db'
 import { initRedis } from '../server/utils/redis'
 import { processBacktestJob } from './backtest-processor'
+import { processMarketIngestJob, runMarketIngest } from './market-ingester'
 
-const QUEUE_NAMES = ['backtest', 'broker-sync', 'ai', 'scan'] as const
+const QUEUE_NAMES = ['backtest', 'broker-sync', 'ai', 'scan', 'market-ingest'] as const
 
 type QueueName = (typeof QUEUE_NAMES)[number]
+
+const MARKET_INGEST_INTERVAL_MS = Number(
+  process.env.MARKET_INGEST_INTERVAL_MS ?? 5 * 60 * 1000,
+)
+const MARKET_INGEST_INTERVAL_ENABLED = process.env.MARKET_INGEST_INTERVAL !== '0'
 
 function createConnection() {
   const url = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379'
@@ -17,6 +23,12 @@ function createProcessor(queueName: QueueName) {
   if (queueName === 'backtest') {
     return async (job: Parameters<typeof processBacktestJob>[0]) => {
       await processBacktestJob(job)
+    }
+  }
+
+  if (queueName === 'market-ingest') {
+    return async (job: Parameters<typeof processMarketIngestJob>[0]) => {
+      await processMarketIngestJob(job)
     }
   }
 
@@ -56,8 +68,19 @@ async function main() {
   const connection = createConnection()
   const workers = startWorkers(connection)
 
+  let ingestTimer: ReturnType<typeof setInterval> | undefined
+  if (MARKET_INGEST_INTERVAL_ENABLED && MARKET_INGEST_INTERVAL_MS > 0) {
+    ingestTimer = setInterval(() => {
+      void runMarketIngest().catch((error) => {
+        console.error('[market-ingest] interval run failed', error)
+      })
+    }, MARKET_INGEST_INTERVAL_MS)
+    console.log(`[market-ingest] interval enabled every ${MARKET_INGEST_INTERVAL_MS}ms`)
+  }
+
   const shutdown = async (signal: string) => {
     console.log(`[worker] received ${signal}, shutting down...`)
+    if (ingestTimer) clearInterval(ingestTimer)
     await Promise.all(workers.map(worker => worker.close()))
     await connection.quit()
     process.exit(0)

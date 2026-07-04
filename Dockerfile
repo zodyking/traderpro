@@ -13,7 +13,7 @@ COPY . .
 
 RUN npm run build
 
-# Copy TradingView into the Nitro bundle without npm install (avoids platform dep conflicts).
+# Copy TradingView (and nested deps) into the Nitro bundle without npm install.
 RUN mkdir -p .output/server/node_modules/@mathieuc \
   && cp -r node_modules/@mathieuc/tradingview .output/server/node_modules/@mathieuc/
 
@@ -33,6 +33,7 @@ RUN npm ci --omit=dev \
   && npm cache clean --force
 
 COPY --from=build /app/.output ./.output
+COPY --from=build /app/node_modules/@mathieuc ./node_modules/@mathieuc
 COPY db ./db
 COPY drizzle.config.ts ./
 COPY worker ./worker

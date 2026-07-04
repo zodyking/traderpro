@@ -41,6 +41,7 @@ export function createMarketDataProvider(
     return useMock()
   }
 
+  console.info('[market-data] using TradingView provider (@mathieuc/tradingview)')
   return useTradingView()
 }
 

@@ -41,11 +41,13 @@ const chartRef = ref<IChartApi | null>(null)
 const candles = ref<IndicatorCandle[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+const hasLoaded = ref(false)
 
 let chart: IChartApi | null = null
 let series: ISeriesApi<'Candlestick'> | null = null
 let seriesMarkers: ISeriesMarkersPluginApi<Time> | null = null
 let unsubscribe: (() => void) | null = null
+let resizeObserver: ResizeObserver | null = null
 
 const { subscribe, connect } = useLiveChannel()
 const replayEngine = inject<ReplayEngine | null>('replayEngine', null)
@@ -67,20 +69,8 @@ watch(
 
 watch(
   displayCandles,
-  (nextCandles) => {
-    if (!series) return
-
-    const chartCandles = nextCandles.map((candle) => ({
-      time: toChartTime(candle.time),
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }))
-
-    series.setData(chartCandles)
-    chart?.timeScale().fitContent()
-    applyMarkers()
+  () => {
+    renderCandlesToChart()
   },
   { deep: true },
 )
@@ -128,6 +118,87 @@ function applyMarkers() {
   )
 }
 
+function destroyChart() {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  unsubscribe?.()
+  unsubscribe = null
+  chart?.remove()
+  chart = null
+  chartRef.value = null
+  series = null
+  seriesMarkers = null
+}
+
+function ensureChart(): boolean {
+  if (!import.meta.client || !containerRef.value || chart) {
+    return Boolean(chart && series)
+  }
+
+  const width = Math.max(containerRef.value.clientWidth, 320)
+
+  chart = createChart(containerRef.value, {
+    width,
+    height: props.height,
+    layout: {
+      background: { type: ColorType.Solid, color: '#0A0E17' },
+      textColor: '#9AA6BF',
+    },
+    grid: {
+      vertLines: { color: '#1A2338' },
+      horzLines: { color: '#1A2338' },
+    },
+    rightPriceScale: {
+      borderColor: '#232F48',
+    },
+    timeScale: {
+      borderColor: '#232F48',
+    },
+    crosshair: {
+      vertLine: { color: '#14E0B8', labelBackgroundColor: '#151D2E' },
+      horzLine: { color: '#14E0B8', labelBackgroundColor: '#151D2E' },
+    },
+  })
+
+  chartRef.value = chart
+
+  series = chart.addSeries(CandlestickSeries, {
+    upColor: '#16C784',
+    downColor: '#EA3943',
+    borderVisible: false,
+    wickUpColor: '#16C784',
+    wickDownColor: '#EA3943',
+  })
+
+  seriesMarkers = createSeriesMarkers(series)
+
+  resizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    if (!entry || !chart) return
+    chart.applyOptions({ width: Math.max(entry.contentRect.width, 320) })
+  })
+  resizeObserver.observe(containerRef.value)
+
+  return true
+}
+
+function renderCandlesToChart() {
+  if (!displayCandles.value.length) return
+  if (!ensureChart() || !series) return
+
+  const chartCandles = displayCandles.value.map((candle) => ({
+    time: toChartTime(candle.time),
+    open: candle.open,
+    high: candle.high,
+    low: candle.low,
+    close: candle.close,
+  }))
+
+  series.setData(chartCandles)
+  chart?.timeScale().fitContent()
+  applyMarkers()
+}
+
 async function loadCandles(symbolId: string) {
   loading.value = true
   error.value = null
@@ -157,17 +228,8 @@ async function loadCandles(symbolId: string) {
       volume: candle.volume,
     }))
 
-    const chartCandles = candles.value.map((candle) => ({
-      time: toChartTime(candle.time),
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }))
-
-    series?.setData(chartCandles)
-    chart?.timeScale().fitContent()
-    applyMarkers()
+    await nextTick()
+    renderCandlesToChart()
 
     unsubscribe?.()
     if (replayEngine?.isActive.value) {
@@ -218,55 +280,8 @@ async function loadCandles(symbolId: string) {
   }
   finally {
     loading.value = false
+    hasLoaded.value = true
   }
-}
-
-function initChart() {
-  if (!containerRef.value || chart) return
-
-  const width = Math.max(containerRef.value.clientWidth, 320)
-
-  chart = createChart(containerRef.value, {
-    width,
-    height: props.height,
-    layout: {
-      background: { type: ColorType.Solid, color: '#0A0E17' },
-      textColor: '#9AA6BF',
-    },
-    grid: {
-      vertLines: { color: '#1A2338' },
-      horzLines: { color: '#1A2338' },
-    },
-    rightPriceScale: {
-      borderColor: '#232F48',
-    },
-    timeScale: {
-      borderColor: '#232F48',
-    },
-    crosshair: {
-      vertLine: { color: '#14E0B8', labelBackgroundColor: '#151D2E' },
-      horzLine: { color: '#14E0B8', labelBackgroundColor: '#151D2E' },
-    },
-  })
-
-  chartRef.value = chart
-
-  series = chart.addSeries(CandlestickSeries, {
-    upColor: '#16C784',
-    downColor: '#EA3943',
-    borderVisible: false,
-    wickUpColor: '#16C784',
-    wickDownColor: '#EA3943',
-  })
-
-  seriesMarkers = createSeriesMarkers(series)
-
-  const resizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0]
-    if (!entry || !chart) return
-    chart.applyOptions({ width: entry.contentRect.width })
-  })
-  resizeObserver.observe(containerRef.value)
 }
 
 watch(
@@ -287,25 +302,35 @@ watch(
 watch(
   () => [props.symbolId, props.interval] as const,
   async ([symbolId]) => {
-    if (!import.meta.client || !symbolId) {
-      candles.value = []
-      series?.setData([])
-      return
-    }
+    if (!import.meta.client) return
+
+    destroyChart()
+    candles.value = []
+    hasLoaded.value = false
+    error.value = null
+
+    if (!symbolId) return
+
     await nextTick()
-    initChart()
+    ensureChart()
     await loadCandles(symbolId)
   },
   { immediate: true },
 )
 
+watch(
+  containerRef,
+  () => {
+    if (!containerRef.value || !props.symbolId) return
+    if (ensureChart() && candles.value.length > 0) {
+      renderCandlesToChart()
+    }
+  },
+  { flush: 'post' },
+)
+
 onBeforeUnmount(() => {
-  unsubscribe?.()
-  chart?.remove()
-  chart = null
-  chartRef.value = null
-  series = null
-  seriesMarkers = null
+  destroyChart()
 })
 </script>
 
@@ -326,6 +351,11 @@ onBeforeUnmount(() => {
         :label="error"
         variant="bear"
       />
+      <UiBadge
+        v-else-if="hasLoaded && candles.length > 0"
+        :label="`${candles.length} bars`"
+        variant="bull"
+      />
     </div>
 
     <div
@@ -336,23 +366,34 @@ onBeforeUnmount(() => {
     >
       Select a symbol to load the chart.
     </div>
-    <div
-      v-else-if="!loading && candles.length === 0"
-      data-testid="chart-panel"
-      class="flex items-center justify-center px-4 text-center text-sm text-text-muted"
-      :style="{ height: `${height}px` }"
-    >
-      No candle data yet. Check that TradingView market data is enabled.
-    </div>
+
     <div
       v-else
-      ref="containerRef"
-      data-testid="chart-panel"
-      class="w-full"
+      class="relative w-full"
       :style="{ height: `${height}px` }"
-      role="img"
-      aria-label="Candlestick price chart"
-    />
+    >
+      <div
+        ref="containerRef"
+        data-testid="chart-panel"
+        class="absolute inset-0 w-full"
+        role="img"
+        aria-label="Candlestick price chart"
+      />
+
+      <div
+        v-if="loading"
+        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-bg-base/50 text-sm text-text-muted"
+      >
+        Loading candles…
+      </div>
+
+      <div
+        v-else-if="hasLoaded && !error && candles.length === 0"
+        class="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-text-muted"
+      >
+        No candle data yet. Confirm TradingView market data is enabled on the server.
+      </div>
+    </div>
 
     <ChartIndicatorOverlay
       v-if="chartRef && symbolId"

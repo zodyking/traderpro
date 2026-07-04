@@ -278,7 +278,10 @@ export async function getCandles(input: {
     const redis = useRedis()
     const cached = await redis.get(redisKey)
     if (cached) {
-      return JSON.parse(cached)
+      const parsed = JSON.parse(cached) as { candles?: unknown[] }
+      if (Array.isArray(parsed.candles) && parsed.candles.length > 0) {
+        return parsed
+      }
     }
   }
   catch {

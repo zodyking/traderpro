@@ -18,8 +18,7 @@ export default defineNuxtConfig({
     experimental: {
       websocket: true,
     },
-    // @mathieuc/tradingview (Mathieu2301/TradingView-API) must resolve at runtime in production.
-    nodeModules: ['@mathieuc/tradingview'],
+    nodeModules: ['@mathieuc/tradingview', 'ws', 'axios', 'jszip'],
   },
   runtimeConfig: {
     databaseUrl: process.env.DATABASE_URL || '',

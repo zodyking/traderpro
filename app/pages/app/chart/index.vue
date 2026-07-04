@@ -116,6 +116,9 @@ const secondarySymbolId = computed(() => {
   if (activeIndex === -1) return ids.find(id => id !== workspace.activeSymbolId) ?? null
   return ids[activeIndex + 1] ?? ids.find(id => id !== workspace.activeSymbolId) ?? null
 })
+
+const replayEngine = useReplayEngine()
+provide('replayEngine', replayEngine)
 </script>
 
 <template>
@@ -188,6 +191,21 @@ const secondarySymbolId = computed(() => {
             type="button"
             class="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
             :class="
+              replayEngine.isActive.value
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border-hair text-text-muted hover:bg-bg-raised hover:text-text-secondary'
+            "
+            :aria-pressed="replayEngine.isActive.value"
+            data-testid="replay-mode-toggle"
+            @click="replayEngine.toggleMode()"
+          >
+            Replay
+          </button>
+
+          <button
+            type="button"
+            class="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
+            :class="
               alertsOpen
                 ? 'border-accent bg-accent/10 text-accent'
                 : 'border-border-hair text-text-muted hover:bg-bg-raised hover:text-text-secondary'
@@ -220,6 +238,11 @@ const secondarySymbolId = computed(() => {
         @update:overlays="overlays = $event"
       />
 
+      <ChartReplayControls
+        v-if="replayEngine.isActive.value"
+        :engine="replayEngine"
+      />
+
       <ClientOnly>
         <ChartChartGrid
           :pane-count="paneCount"
@@ -237,6 +260,18 @@ const secondarySymbolId = computed(() => {
           </div>
         </template>
       </ClientOnly>
+
+      <UiPanel
+        v-if="workspace.activeSymbolId"
+        title="Market AI"
+      >
+        <AiAIReviewWidget
+          target-type="market"
+          review-type="market"
+          :target-id="workspace.activeSymbolId"
+          label="Market Explanation"
+        />
+      </UiPanel>
 
         <div
           v-if="alertsOpen"

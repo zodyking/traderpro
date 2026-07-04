@@ -2,9 +2,9 @@
 import type { AIReviewResult } from '#shared/types/ai'
 
 const props = defineProps<{
-  targetType: 'strategy' | 'trade' | 'risk' | 'lesson'
+  targetType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market'
   targetId: string
-  reviewType?: 'strategy' | 'trade' | 'risk' | 'lesson'
+  reviewType?: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market'
   label?: string
 }>()
 

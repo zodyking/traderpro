@@ -4,7 +4,7 @@ export const aiReviewTargetTypeSchema = z.enum(['strategy', 'trade', 'risk', 'le
 
 export const aiReviewCreateSchema = z.object({
   targetType: aiReviewTargetTypeSchema,
-  targetId: z.string().uuid(),
+  targetId: z.string().min(1).max(128),
   reviewType: aiReviewTargetTypeSchema.optional(),
 })
 
@@ -14,7 +14,7 @@ export const aiReviewIdParamSchema = z.object({
 
 export const aiReviewListQuerySchema = z.object({
   targetType: aiReviewTargetTypeSchema.optional(),
-  targetId: z.string().uuid().optional(),
+  targetId: z.string().min(1).max(128).optional(),
 })
 
 export type AIReviewCreateInput = z.infer<typeof aiReviewCreateSchema>

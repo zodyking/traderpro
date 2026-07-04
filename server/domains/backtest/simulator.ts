@@ -41,6 +41,7 @@ type OpenPosition = {
 
 function toCandleContext(candles: SimulatorCandle[]): CandleContext {
   return {
+    times: candles.map(c => new Date(c.time)),
     open: candles.map(c => c.open),
     high: candles.map(c => c.high),
     low: candles.map(c => c.low),

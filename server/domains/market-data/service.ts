@@ -392,3 +392,18 @@ export async function publishCandleEvent(
     // ignore publish failures
   }
 }
+
+export async function publishQuoteEvent(symbolId: string, quote: QuoteEvent) {
+  const channel = `market.quote.${symbolId}`
+  try {
+    const redis = useRedis()
+    await redis.publish(channel, JSON.stringify(quote))
+    await redis.set(
+      cacheKey(['quote', 'latest', symbolId]),
+      JSON.stringify(quote),
+    )
+  }
+  catch {
+    // ignore publish failures
+  }
+}

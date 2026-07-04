@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 
+import type { PlanVsExecutionExecution } from '#shared/schemas/broker'
+
 export type JournalPlanned = {
   entry?: number
   stop?: number
@@ -20,6 +22,8 @@ export type JournalEntry = {
   symbolId?: string | null
   symbolTicker?: string | null
   strategyVersionId?: string | null
+  executionIds: string[]
+  linkedExecutions?: PlanVsExecutionExecution[]
   side?: 'long' | 'short' | null
   setupTag?: string | null
   planned: JournalPlanned
@@ -45,11 +49,12 @@ export type AIReview = {
   } | null
 }
 
-type CreateInput = Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'planned' | 'actual' | 'mistakes' | 'screenshots'> & {
+type CreateInput = Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'planned' | 'actual' | 'mistakes' | 'screenshots' | 'executionIds' | 'linkedExecutions'> & {
   planned?: JournalPlanned
   actual?: JournalActual
   mistakes?: string[]
   screenshots?: string[]
+  executionIds?: string[]
 }
 
 type UpdateInput = Partial<CreateInput>
@@ -72,6 +77,10 @@ export const useJournalStore = defineStore('journal', () => {
       symbolId: raw.symbolId != null ? String(raw.symbolId) : null,
       symbolTicker: raw.symbolTicker != null ? String(raw.symbolTicker) : null,
       strategyVersionId: raw.strategyVersionId != null ? String(raw.strategyVersionId) : null,
+      executionIds: Array.isArray(raw.executionIds) ? raw.executionIds as string[] : [],
+      linkedExecutions: Array.isArray(raw.linkedExecutions)
+        ? raw.linkedExecutions as PlanVsExecutionExecution[]
+        : [],
       side: (raw.side as 'long' | 'short' | null) ?? null,
       setupTag: raw.setupTag != null ? String(raw.setupTag) : null,
       planned: (raw.planned as JournalPlanned) ?? {},

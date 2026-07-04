@@ -17,6 +17,7 @@ export const journalActualSchema = z.object({
 export const journalCreateSchema = z.object({
   symbolId: z.string().uuid().optional(),
   strategyVersionId: z.string().uuid().optional(),
+  executionIds: z.array(z.string().uuid()).max(50).optional(),
   side: z.enum(['long', 'short']).optional(),
   setupTag: z.string().max(64).optional(),
   planned: journalPlannedSchema.optional(),

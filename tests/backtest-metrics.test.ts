@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateMetrics } from '../server/domains/backtest/metrics'
+import { calculateMetrics, computeRegimeBreakdown } from '../server/domains/backtest/metrics'
 import type { EquityPoint, SimulatedTrade } from '../shared/types/backtest'
 
 const startingCapital = 10_000
@@ -60,5 +60,35 @@ describe('backtest metrics calculator', () => {
     expect(metrics.profitFactor).toBeNull()
     expect(metrics.expectancy).toBeNull()
     expect(metrics.totalReturn).toBe(0)
+  })
+
+  it('computes monthly regime breakdown from equity curve', () => {
+    const equityPoints: EquityPoint[] = [
+      { time: new Date('2024-01-01T00:00:00.000Z'), equity: 10_000, drawdown: 0 },
+      { time: new Date('2024-01-31T23:59:59.999Z'), equity: 10_500, drawdown: 0 },
+      { time: new Date('2024-02-01T00:00:00.000Z'), equity: 10_500, drawdown: 0 },
+      { time: new Date('2024-02-29T23:59:59.999Z'), equity: 10_200, drawdown: 0.03 },
+    ]
+
+    const breakdown = computeRegimeBreakdown(equityPoints)
+
+    expect(breakdown['2024-01']?.returnPct).toBeCloseTo(0.05, 4)
+    expect(breakdown['2024-02']?.returnPct).toBeCloseTo(-0.02857, 4)
+  })
+
+  it('includes regime breakdown in calculateMetrics', () => {
+    const equityPoints: EquityPoint[] = [
+      { time: new Date('2024-01-01T00:00:00.000Z'), equity: startingCapital, drawdown: 0 },
+      { time: new Date('2024-01-31T23:59:59.999Z'), equity: startingCapital * 1.1, drawdown: 0 },
+    ]
+
+    const metrics = calculateMetrics({
+      trades: [],
+      equityPoints,
+      startingCapital,
+      barCount: 22,
+    })
+
+    expect(metrics.regimeBreakdown['2024-01']?.returnPct).toBeCloseTo(0.1, 4)
   })
 })

@@ -59,6 +59,16 @@ const metricCards = computed(() => {
 })
 
 const qualityWarnings = computed(() => props.metrics?.qualityWarnings ?? [])
+
+const monthlyReturns = computed(() => {
+  const breakdown = props.metrics?.regimeBreakdown ?? {}
+  return Object.entries(breakdown)
+    .map(([month, stats]) => ({
+      month,
+      returnPct: (stats as { returnPct?: number }).returnPct ?? null,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month))
+})
 </script>
 
 <template>
@@ -122,6 +132,46 @@ const qualityWarnings = computed(() => props.metrics?.qualityWarnings ?? [])
           :height="300"
         />
       </ClientOnly>
+    </UiPanel>
+
+    <UiPanel
+      v-if="monthlyReturns.length"
+      title="Monthly returns"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="text-text-secondary">
+              <th class="pb-2 pr-4 font-medium">
+                Month
+              </th>
+              <th class="pb-2 font-medium">
+                Return
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in monthlyReturns"
+              :key="row.month"
+              class="border-t border-border-hair text-text-primary"
+            >
+              <td class="py-2 pr-4 text-text-secondary">
+                {{ row.month }}
+              </td>
+              <td
+                class="py-2 font-mono tabular-nums"
+                :class="{
+                  'text-bull': row.returnPct != null && row.returnPct > 0,
+                  'text-bear': row.returnPct != null && row.returnPct < 0,
+                }"
+              >
+                {{ pct(row.returnPct) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </UiPanel>
 
     <UiPanel title="Trade log">

@@ -104,5 +104,6 @@ export type BacktestResultSummary = {
   exposurePct: number | null
   longestWinStreak: number
   longestLossStreak: number
+  regimeBreakdown: Record<string, { returnPct: number }>
   qualityWarnings: string[]
 }

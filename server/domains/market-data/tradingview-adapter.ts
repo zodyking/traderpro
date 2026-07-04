@@ -121,10 +121,43 @@ type TvChart = {
   delete: () => void
 }
 
+type TvQuoteData = {
+  bid?: number
+  ask?: number
+  lp?: number
+  volume?: number
+}
+
+type TvClient = InstanceType<Awaited<ReturnType<typeof loadTradingView>>['Client']>
+type TvQuoteSession = InstanceType<TvClient['Session']['Quote']>
+type TvQuoteMarket = InstanceType<TvQuoteSession['Market']>
+
 export class TradingViewAdapter implements MarketDataProvider {
   private fallback = createMockProvider()
   private lastStatus: ProviderStatus = 'healthy'
   private lastError?: string
+  private chartClient: TvClient | null = null
+  private chartSession: TvChart | null = null
+
+  private async ensureChartSession(): Promise<{ client: TvClient, chart: TvChart }> {
+    if (this.chartClient && this.chartSession) {
+      return { client: this.chartClient, chart: this.chartSession }
+    }
+
+    const TradingView = await loadTradingView()
+    const client = new TradingView.Client()
+    const chart = new client.Session.Chart()
+    this.chartClient = client
+    this.chartSession = chart
+    return { client, chart }
+  }
+
+  private releaseChartSession() {
+    this.chartSession?.delete()
+    this.chartClient?.end()
+    this.chartSession = null
+    this.chartClient = null
+  }
 
   async searchSymbols(query: string, assetClass?: AssetClass): Promise<SymbolResult[]> {
     try {
@@ -207,7 +240,72 @@ export class TradingViewAdapter implements MarketDataProvider {
   }
 
   async *subscribeQuotes(symbols: SymbolKey[]): AsyncIterable<QuoteEvent> {
-    yield* this.fallback.subscribeQuotes(symbols)
+    if (symbols.length === 0) {
+      yield* this.fallback.subscribeQuotes(symbols)
+      return
+    }
+
+    try {
+      const { client } = await this.ensureChartSession()
+      const quoteSession = new client.Session.Quote({ fields: 'price' })
+      const markets: TvQuoteMarket[] = []
+      const queue: QuoteEvent[] = []
+      let notify: (() => void) | null = null
+
+      const wake = () => {
+        notify?.()
+        notify = null
+      }
+
+      for (const symbol of symbols) {
+        const marketId = toMarketId(symbol)
+        const market = new quoteSession.Market(marketId)
+        const symbolId = `${symbol.provider}:${symbol.exchange}:${symbol.ticker}`
+
+        market.onData((data: TvQuoteData) => {
+          queue.push({
+            symbolId,
+            time: new Date().toISOString(),
+            bid: data.bid,
+            ask: data.ask,
+            last: data.lp,
+            volumeDay: data.volume,
+          })
+          wake()
+        })
+
+        markets.push(market)
+      }
+
+      this.lastStatus = 'healthy'
+
+      try {
+        while (true) {
+          if (queue.length > 0) {
+            yield queue.shift()!
+            continue
+          }
+
+          await Promise.race([
+            new Promise<void>((resolve) => {
+              notify = resolve
+            }),
+            new Promise<void>(resolve => setTimeout(resolve, 5_000)),
+          ])
+        }
+      }
+      finally {
+        for (const market of markets) {
+          market.close()
+        }
+        quoteSession.delete()
+      }
+    }
+    catch (error) {
+      this.lastStatus = 'delayed'
+      this.lastError = error instanceof Error ? error.message : 'TradingView quotes failed'
+      yield* this.fallback.subscribeQuotes(symbols)
+    }
   }
 
   async *subscribeCandles(req: LiveCandleRequest): AsyncIterable<CandleEvent> {

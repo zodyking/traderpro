@@ -1,5 +1,6 @@
 import type { Condition, IndicatorRef, LevelRef, Op, RuleAst } from '../../../shared/types/strategy'
 import { atr, ema, rsi, sma, vwap } from './indicators'
+import { isInSession } from './session'
 
 export type CandleContext = {
   open: number[]
@@ -7,6 +8,7 @@ export type CandleContext = {
   low: number[]
   close: number[]
   volume: number[]
+  times?: Date[]
 }
 
 export type CompiledStrategy = {
@@ -202,8 +204,16 @@ function evaluateCondition(
     }
     case 'candle_pattern':
       return evaluateCandlePattern(condition.pattern, index, ctx)
-    case 'time_window':
-      return true
+    case 'time_window': {
+      const barTime = ctx.times?.[index]
+      if (!barTime) return false
+      const sessionType = condition.session.session
+      if (sessionType === '24h') return true
+      if (sessionType === 'extended') {
+        return isInSession(barTime, 'premarket') || isInSession(barTime, 'afterhours')
+      }
+      return isInSession(barTime, sessionType)
+    }
     default:
       return false
   }

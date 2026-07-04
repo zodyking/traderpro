@@ -91,6 +91,37 @@ function equityReturns(points: EquityPoint[]): number[] {
   return returns
 }
 
+function monthKey(date: Date): string {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+export function computeRegimeBreakdown(
+  equityPoints: EquityPoint[],
+): Record<string, { returnPct: number }> {
+  if (equityPoints.length < 2) return {}
+
+  const byMonth = new Map<string, EquityPoint[]>()
+  for (const point of equityPoints) {
+    const key = monthKey(point.time)
+    const bucket = byMonth.get(key) ?? []
+    bucket.push(point)
+    byMonth.set(key, bucket)
+  }
+
+  const breakdown: Record<string, { returnPct: number }> = {}
+  for (const [month, points] of byMonth) {
+    const startEquity = points[0]!.equity
+    const endEquity = points[points.length - 1]!.equity
+    if (startEquity > 0) {
+      breakdown[month] = { returnPct: (endEquity - startEquity) / startEquity }
+    }
+  }
+
+  return breakdown
+}
+
 function computeMaxDrawdown(points: EquityPoint[]): number | null {
   if (points.length === 0) return null
   return Math.max(...points.map(point => point.drawdown))
@@ -131,6 +162,7 @@ export function calculateMetrics(input: {
 
   const streaks = computeStreaks(pnls)
   const returns = equityReturns(equityPoints)
+  const regimeBreakdown = computeRegimeBreakdown(equityPoints)
 
   return {
     tradeCount: closedTrades.length,
@@ -147,6 +179,7 @@ export function calculateMetrics(input: {
     exposurePct: computeExposurePct(closedTrades, barCount),
     longestWinStreak: streaks.longestWin,
     longestLossStreak: streaks.longestLoss,
+    regimeBreakdown,
     qualityWarnings,
   }
 }

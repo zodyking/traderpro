@@ -1,6 +1,7 @@
 import type { CandleContext } from '../strategy/compiler'
 import type { Condition, IndicatorRef, LevelRef, Op, CompiledCondition } from '../../../shared/types/strategy'
 import { atr, ema, rsi, sma, vwap } from '../strategy/indicators'
+import { isInSession } from '../strategy/session'
 
 type IndicatorSeries = Map<string, number[]>
 
@@ -168,8 +169,16 @@ function evaluateCondition(
     }
     case 'candle_pattern':
       return evaluateCandlePattern(condition.pattern, index, ctx)
-    case 'time_window':
-      return true
+    case 'time_window': {
+      const barTime = ctx.times?.[index]
+      if (!barTime) return false
+      const sessionType = condition.session.session
+      if (sessionType === '24h') return true
+      if (sessionType === 'extended') {
+        return isInSession(barTime, 'premarket') || isInSession(barTime, 'afterhours')
+      }
+      return isInSession(barTime, sessionType)
+    }
     default:
       return false
   }

@@ -26,6 +26,19 @@ export async function enqueueBacktestJob(runId: string) {
   await getBacktestQueue().add('run', { runId }, { jobId: runId })
 }
 
+export async function removeBacktestJob(runId: string): Promise<boolean> {
+  const job = await getBacktestQueue().getJob(runId)
+  if (!job) return false
+
+  const state = await job.getState()
+  if (state === 'active') {
+    return false
+  }
+
+  await job.remove()
+  return true
+}
+
 export async function closeBacktestQueue() {
   await queue?.close()
   await connection?.quit()

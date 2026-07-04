@@ -1,15 +1,12 @@
 <script setup lang="ts">
+import { LESSON_CATALOG, type LessonCatalogEntry } from '#shared/lessons'
+
 definePageMeta({
   layout: 'app',
   middleware: 'auth',
 })
 
-type Lesson = {
-  id: string
-  title: string
-  source: string
-  duration: string
-}
+type Lesson = LessonCatalogEntry
 
 type Stage = {
   number: number
@@ -23,67 +20,37 @@ const STAGES: Stage[] = [
     number: 1,
     title: 'Foundation',
     description: 'Market structure, order types, and how price is formed.',
-    lessons: [
-      { id: 'f1', title: 'How exchanges work', source: 'Core', duration: '8 min' },
-      { id: 'f2', title: 'Bid/ask spread and liquidity', source: 'Core', duration: '6 min' },
-      { id: 'f3', title: 'Market vs. limit orders', source: 'Core', duration: '5 min' },
-      { id: 'f4', title: 'Reading a candlestick chart', source: 'Core', duration: '10 min' },
-    ],
+    lessons: LESSON_CATALOG.filter(lesson => lesson.stage === 'Foundation'),
   },
   {
     number: 2,
     title: 'Technical Analysis',
     description: 'Indicators, patterns, and reading price action.',
-    lessons: [
-      { id: 't1', title: 'Moving averages (SMA vs EMA)', source: 'Core', duration: '9 min' },
-      { id: 't2', title: 'RSI and momentum', source: 'Core', duration: '8 min' },
-      { id: 't3', title: 'Support and resistance', source: 'Core', duration: '12 min' },
-      { id: 't4', title: 'Volume confirmation', source: 'Mistake cluster', duration: '7 min' },
-    ],
+    lessons: LESSON_CATALOG.filter(lesson => lesson.stage === 'Technical Analysis'),
   },
   {
     number: 3,
     title: 'Risk Management',
     description: 'Position sizing, stop-loss discipline, and drawdown control.',
-    lessons: [
-      { id: 'r1', title: 'Risk-reward ratio fundamentals', source: 'Core', duration: '10 min' },
-      { id: 'r2', title: 'Sizing by fixed risk %', source: 'Core', duration: '8 min' },
-      { id: 'r3', title: 'Why traders skip stops', source: 'Mistake cluster', duration: '6 min' },
-      { id: 'r4', title: 'Max daily loss rules', source: 'Core', duration: '7 min' },
-    ],
+    lessons: LESSON_CATALOG.filter(lesson => lesson.stage === 'Risk Management'),
   },
   {
     number: 4,
     title: 'Strategy Building',
     description: 'Constructing rule-based systems and avoiding curve-fitting.',
-    lessons: [
-      { id: 's1', title: 'Entry signal design', source: 'Core', duration: '11 min' },
-      { id: 's2', title: 'Exit rules and take-profit logic', source: 'Core', duration: '9 min' },
-      { id: 's3', title: 'Over-optimising for past data', source: 'Mistake cluster', duration: '8 min' },
-      { id: 's4', title: 'Walk-forward testing basics', source: 'Core', duration: '12 min' },
-    ],
+    lessons: LESSON_CATALOG.filter(lesson => lesson.stage === 'Strategy Building'),
   },
   {
     number: 5,
     title: 'Backtesting & Validation',
     description: 'Running backtests, interpreting metrics, and stress-testing strategies.',
-    lessons: [
-      { id: 'b1', title: 'Reading Sharpe and Sortino', source: 'Core', duration: '9 min' },
-      { id: 'b2', title: 'Max drawdown and recovery', source: 'Core', duration: '8 min' },
-      { id: 'b3', title: '"Exploratory" results (< 30 trades)', source: 'Mistake cluster', duration: '6 min' },
-      { id: 'b4', title: 'Data quality warnings', source: 'Core', duration: '7 min' },
-    ],
+    lessons: LESSON_CATALOG.filter(lesson => lesson.stage === 'Backtesting & Validation'),
   },
   {
     number: 6,
     title: 'Live Trading',
     description: 'Bridging from backtests to live capital with guardrails.',
-    lessons: [
-      { id: 'l1', title: 'Paper trading before going live', source: 'Core', duration: '8 min' },
-      { id: 'l2', title: 'Slippage and execution realism', source: 'Core', duration: '7 min' },
-      { id: 'l3', title: 'Emotional discipline under drawdown', source: 'Mistake cluster', duration: '10 min' },
-      { id: 'l4', title: 'Scaling position size gradually', source: 'Core', duration: '9 min' },
-    ],
+    lessons: LESSON_CATALOG.filter(lesson => lesson.stage === 'Live Trading'),
   },
 ]
 
@@ -92,7 +59,12 @@ type StageStatus = 'locked' | 'available' | 'in_progress' | 'complete'
 const completedLessons = ref<Set<string>>(new Set())
 const loading = ref(true)
 const saving = ref<string | null>(null)
+const coachLoading = ref<string | null>(null)
+const coachError = ref<string | null>(null)
+const coachReviewId = ref<string | null>(null)
 const expandedStage = ref<number | null>(1)
+
+const aiStore = useAIStore()
 
 onMounted(async () => {
   try {
@@ -193,6 +165,26 @@ const stageNumberClass: Record<StageStatus, string> = {
 function toggle(num: number) {
   expandedStage.value = expandedStage.value === num ? null : num
 }
+
+async function askCoach(lessonId: string) {
+  coachLoading.value = lessonId
+  coachError.value = null
+  coachReviewId.value = lessonId
+
+  try {
+    await aiStore.requestReview('lesson', lessonId, 'lesson')
+  }
+  catch (err: unknown) {
+    coachError.value = err instanceof Error ? err.message : 'Coach request failed'
+  }
+  finally {
+    coachLoading.value = null
+  }
+}
+
+const activeCoachReview = computed(() =>
+  coachReviewId.value ? aiStore.reviewFor(coachReviewId.value) : null,
+)
 </script>
 
 <template>
@@ -339,6 +331,14 @@ function toggle(num: number) {
                 </span>
                 <span class="text-2xs text-text-muted">{{ lesson.source }} · {{ lesson.duration }}</span>
               </span>
+              <UiBtn
+                variant="secondary"
+                size="sm"
+                :loading="coachLoading === lesson.id"
+                @click="askCoach(lesson.id)"
+              >
+                Ask Coach
+              </UiBtn>
               <span
                 v-if="lesson.source === 'Mistake cluster'"
                 class="shrink-0 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-2xs text-warn"
@@ -350,5 +350,24 @@ function toggle(num: number) {
         </div>
       </div>
     </div>
+
+    <UiPanel
+      v-if="coachReviewId && (activeCoachReview || coachError)"
+      title="Coach Feedback"
+    >
+      <p
+        v-if="coachError"
+        class="rounded-md border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear"
+      >
+        {{ coachError }}
+      </p>
+      <AiAIReviewWidget
+        v-else-if="activeCoachReview"
+        target-type="lesson"
+        review-type="lesson"
+        :target-id="coachReviewId"
+        label="Learning Coach"
+      />
+    </UiPanel>
   </div>
 </template>

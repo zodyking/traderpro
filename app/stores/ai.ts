@@ -34,9 +34,9 @@ export const useAIStore = defineStore('ai', () => {
   }
 
   async function requestReview(
-    targetType: 'strategy' | 'trade' | 'risk' | 'lesson',
+    targetType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market',
     targetId: string,
-    reviewType?: 'strategy' | 'trade' | 'risk' | 'lesson',
+    reviewType?: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market',
   ) {
     requestStatus.value.set(targetId, 'loading')
     requestError.value.delete(targetId)
@@ -67,7 +67,7 @@ export const useAIStore = defineStore('ai', () => {
   }
 
   async function loadReviewsFor(
-    targetType: 'strategy' | 'trade' | 'risk' | 'lesson',
+    targetType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market',
     targetId: string,
   ) {
     try {

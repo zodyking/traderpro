@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import type { CandleInterval } from '../shared/types/market'
 import { watchlistSymbols } from '../db/schema'
 import { getCandles } from '../server/domains/market-data/service'
+import { analyzeCandleQuality } from '../server/domains/market-data/quality'
 import { useDb } from '../server/utils/db'
 
 const DEFAULT_INTERVALS: CandleInterval[] = ['1h', '1d']
@@ -25,8 +26,15 @@ export async function runMarketIngest(intervals: CandleInterval[] = DEFAULT_INTE
   for (const symbolId of symbolIds) {
     for (const interval of intervals) {
       try {
-        await getCandles({ symbolId, interval, from, to })
+        const series = await getCandles({ symbolId, interval, from, to })
         ingested++
+        if (series.candles.length > 0) {
+          await analyzeCandleQuality({
+            symbolId,
+            interval,
+            candles: series.candles,
+          })
+        }
       }
       catch (error) {
         console.warn(`[market-ingest] failed for ${symbolId} ${interval}`, error)

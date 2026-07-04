@@ -129,6 +129,37 @@ const reviewLoading = computed(() => journalStore.reviewLoading[props.entry.id] 
         >Target <span class="font-mono text-bull">{{ entry.planned.target }}</span></span>
       </div>
 
+      <!-- Linked broker executions -->
+      <div
+        v-if="entry.linkedExecutions?.length"
+        class="mb-3"
+      >
+        <p class="mb-2 text-2xs font-semibold tracking-wide text-text-muted uppercase">
+          Linked executions
+        </p>
+        <ul class="flex flex-col gap-1.5">
+          <li
+            v-for="execution in entry.linkedExecutions"
+            :key="execution.id"
+            class="flex flex-wrap items-center gap-2 rounded-md border border-border-hair bg-bg-raised px-2.5 py-1.5 text-xs"
+          >
+            <span class="font-mono font-medium text-text-primary">{{ execution.rawSymbol }}</span>
+            <span
+              class="rounded px-1 py-0.5 font-mono text-2xs uppercase"
+              :class="execution.side === 'buy' ? 'bg-bull/10 text-bull' : 'bg-bear/10 text-bear'"
+            >
+              {{ execution.side }}
+            </span>
+            <span class="font-mono text-text-secondary">
+              {{ execution.qty }} @ {{ execution.price }}
+            </span>
+            <span class="text-text-muted">
+              {{ new Date(execution.executedAt).toLocaleDateString() }}
+            </span>
+          </li>
+        </ul>
+      </div>
+
       <!-- Emotion + mistakes -->
       <div
         v-if="entry.emotion || entry.mistakes.length"

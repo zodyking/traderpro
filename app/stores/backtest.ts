@@ -261,6 +261,9 @@ export const useBacktestStore = defineStore('backtest', () => {
             progress.value = { pct: 100, stage: 'failed' }
             error.value = run.error ?? 'Backtest failed'
           }
+          else if (run.status === 'canceled') {
+            progress.value = { pct: 100, stage: 'done' }
+          }
         }
       }
       catch (err: unknown) {
@@ -317,9 +320,32 @@ export const useBacktestStore = defineStore('backtest', () => {
       else if (run.status === 'failed') {
         error.value = run.error ?? 'Backtest failed'
       }
+      else if (run.status === 'canceled') {
+        stopTracking()
+      }
     }
     catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to load backtest'
+    }
+  }
+
+  async function cancelActiveBacktest() {
+    const runId = activeRun.value?.id
+    if (!runId) return
+
+    error.value = null
+
+    try {
+      await $fetch(`/api/backtests/${runId}/cancel`, { method: 'POST' })
+      stopTracking()
+      const run = await fetchRun(runId)
+      activeRun.value = run
+      progress.value = { pct: 100, stage: 'done' }
+      return run
+    }
+    catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Failed to cancel backtest'
+      throw err
     }
   }
 
@@ -389,6 +415,7 @@ export const useBacktestStore = defineStore('backtest', () => {
     pollRun,
     loadReport,
     initializeRun,
+    cancelActiveBacktest,
     runWalkForward,
     runMonteCarlo,
     clearActiveRun,

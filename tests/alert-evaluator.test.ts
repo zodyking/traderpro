@@ -3,12 +3,19 @@ import { evaluateCompiledCondition, evaluateConditionAtBar } from '../server/dom
 import type { CandleContext } from '../server/domains/strategy/compiler'
 import type { CompiledCondition, Condition } from '../shared/types/strategy'
 
-function buildCandles(closes: number[]): CandleContext {
+function buildCandles(closes: number[], times?: Date[]): CandleContext {
   const open = closes.map((c, i) => (i === 0 ? c : closes[i - 1]!))
   const high = closes.map((c, i) => Math.max(c, open[i]!))
   const low = closes.map((c, i) => Math.min(c, open[i]!))
   const volume = closes.map(() => 1000)
-  return { open, high, low, close: closes, volume }
+  return {
+    open,
+    high,
+    low,
+    close: closes,
+    volume,
+    times: times ?? closes.map((_, i) => new Date(`2024-01-10T15:00:00.000Z`)),
+  }
 }
 
 function compiled(root: Condition): CompiledCondition {
@@ -151,6 +158,75 @@ describe('evaluateCompiledCondition', () => {
     })
 
     expect(evaluateCompiledCondition(cond, ctx)).toBe(true)
+  })
+
+  it('evaluates time_window regular session on weekday', () => {
+    const ctx = buildCandles([100], [new Date('2024-01-10T15:00:00.000Z')]) // Wed 10:00 ET
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: 'regular' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(true)
+  })
+
+  it('evaluates time_window premarket session', () => {
+    const ctx = buildCandles([100], [new Date('2024-01-10T13:00:00.000Z')]) // Wed 8:00 ET
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: 'premarket' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(true)
+  })
+
+  it('evaluates time_window afterhours session', () => {
+    const ctx = buildCandles([100], [new Date('2024-01-10T22:00:00.000Z')]) // Wed 17:00 ET
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: 'afterhours' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(true)
+  })
+
+  it('rejects time_window regular session outside hours', () => {
+    const ctx = buildCandles([100], [new Date('2024-01-10T13:00:00.000Z')]) // Wed 8:00 ET
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: 'regular' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(false)
+  })
+
+  it('rejects time_window on weekends', () => {
+    const ctx = buildCandles([100], [new Date('2024-01-13T15:00:00.000Z')]) // Sat 10:00 ET
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: 'regular' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(false)
+  })
+
+  it('evaluates time_window 24h as always true', () => {
+    const ctx = buildCandles([100], [new Date('2024-01-13T15:00:00.000Z')])
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: '24h' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(true)
+  })
+
+  it('returns false for time_window without bar times', () => {
+    const ctx: CandleContext = {
+      open: [100],
+      high: [100],
+      low: [100],
+      close: [100],
+      volume: [1000],
+    }
+    const cond = compiled({
+      type: 'time_window',
+      session: { session: 'regular' },
+    })
+    expect(evaluateCompiledCondition(cond, ctx)).toBe(false)
   })
 })
 

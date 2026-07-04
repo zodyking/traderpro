@@ -139,7 +139,7 @@ export async function buildAIReviewPacket(
     }
   }
 
-  if (targetType === 'trade' || targetType === 'risk' || targetType === 'lesson' || targetType === 'market') {
+  if (targetType === 'trade' || targetType === 'risk') {
     const [row] = await db
       .select({ entry: journalEntries, symbolTicker: symbols.ticker, exchange: symbols.exchange })
       .from(journalEntries)
@@ -167,12 +167,41 @@ export async function buildAIReviewPacket(
     }
     packet.dataQuality = { source: 'journal', gaps: 0, warnings: [] }
 
-    if (targetType === 'market' && row.symbolTicker) {
+    if (row.symbolTicker) {
       packet.marketContext = {
         symbol: row.symbolTicker,
         exchange: row.exchange ?? undefined,
       }
     }
+  }
+
+  if (targetType === 'lesson') {
+    const lesson = findLessonById(targetId)
+    if (!lesson) {
+      throw createError({ statusCode: 404, statusMessage: 'Lesson not found' })
+    }
+
+    packet.lessonContext = lesson
+    packet.dataQuality = { source: 'learning', gaps: 0, warnings: [] }
+  }
+
+  if (targetType === 'market') {
+    const [symbol] = await db
+      .select()
+      .from(symbols)
+      .where(eq(symbols.id, targetId))
+      .limit(1)
+
+    if (!symbol) {
+      throw createError({ statusCode: 404, statusMessage: 'Symbol not found' })
+    }
+
+    packet.marketContext = {
+      symbol: symbol.ticker,
+      exchange: symbol.exchange,
+    }
+    packet.dataQuality = { source: 'market', gaps: 0, warnings: [] }
+    userProfile.assetClasses = [symbol.assetClass]
   }
 
   if (targetType === 'trade' || targetType === 'risk' || targetType === 'market') {

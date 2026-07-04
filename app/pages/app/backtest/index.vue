@@ -96,13 +96,20 @@ onBeforeUnmount(() => {
 
       <div
         v-else-if="showProgress"
-        class="flex justify-center pt-8"
+        class="flex flex-col items-center gap-4 pt-8"
       >
         <BacktestBacktestProgress
           :progress="backtestStore.progress"
           :status="backtestStore.activeRun?.status"
           :error="backtestStore.error"
         />
+        <UiBtn
+          variant="secondary"
+          :disabled="backtestStore.loading"
+          @click="backtestStore.cancelActiveBacktest()"
+        >
+          Cancel backtest
+        </UiBtn>
       </div>
 
       <div

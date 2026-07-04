@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { JournalEntry, JournalPlanned, JournalActual } from '~/stores/journal'
 
+import type { ExecutionRow } from '#shared/schemas/broker'
+
 const props = withDefaults(
   defineProps<{
     entry?: JournalEntry | null
@@ -44,10 +46,50 @@ const openedAt = ref(props.entry?.openedAt ? new Date(props.entry.openedAt).toIS
 const closedAt = ref(props.entry?.closedAt ? new Date(props.entry.closedAt).toISOString().slice(0, 16) : '')
 
 const screenshots = ref<string[]>(props.entry?.screenshots ?? [])
+const selectedExecutionIds = ref<string[]>(props.entry?.executionIds ?? [])
+const brokerExecutions = ref<ExecutionRow[]>([])
+const executionsLoading = ref(false)
 const uploadingScreenshot = ref(false)
 const screenshotError = ref<string | null>(null)
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+async function loadExecutions() {
+  executionsLoading.value = true
+  try {
+    brokerExecutions.value = await $fetch<ExecutionRow[]>('/api/broker/executions', {
+      query: { limit: 100 },
+    })
+  }
+  catch {
+    brokerExecutions.value = []
+  }
+  finally {
+    executionsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadExecutions()
+})
+
+function toggleExecution(id: string) {
+  if (selectedExecutionIds.value.includes(id)) {
+    selectedExecutionIds.value = selectedExecutionIds.value.filter(item => item !== id)
+  }
+  else {
+    selectedExecutionIds.value = [...selectedExecutionIds.value, id]
+  }
+}
+
+function formatExecutionDate(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 async function searchSymbols(q: string) {
   if (!q.trim()) {
@@ -143,6 +185,7 @@ function handleSubmit() {
     mistakes,
     note: note.value.trim() || undefined,
     screenshots: screenshots.value,
+    executionIds: selectedExecutionIds.value,
     openedAt: openedAt.value ? new Date(openedAt.value).toISOString() : undefined,
     closedAt: closedAt.value ? new Date(closedAt.value).toISOString() : undefined,
   })
@@ -263,6 +306,66 @@ function handleSubmit() {
         <UiInput v-model="actualEntry" label="Entry" type="number" placeholder="0.00" />
         <UiInput v-model="actualExit" label="Exit" type="number" placeholder="0.00" />
         <UiInput v-model="actualSize" label="Size" type="number" placeholder="0" />
+      </div>
+    </div>
+
+    <!-- Broker executions -->
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between gap-2">
+        <label class="text-xs font-medium text-text-secondary">Linked broker executions</label>
+        <span
+          v-if="selectedExecutionIds.length"
+          class="text-2xs text-text-muted"
+        >
+          {{ selectedExecutionIds.length }} selected
+        </span>
+      </div>
+
+      <div
+        v-if="executionsLoading"
+        class="rounded-md border border-border-hair bg-bg-raised px-3 py-4 text-sm text-text-muted"
+      >
+        Loading executions…
+      </div>
+
+      <div
+        v-else-if="!brokerExecutions.length"
+        class="rounded-md border border-dashed border-border-hair bg-bg-raised px-3 py-4 text-sm text-text-muted"
+      >
+        No broker executions found. Import trades in Settings to link fills.
+      </div>
+
+      <div
+        v-else
+        class="max-h-48 overflow-y-auto rounded-md border border-border-hair bg-bg-raised"
+      >
+        <label
+          v-for="execution in brokerExecutions"
+          :key="execution.id"
+          class="flex cursor-pointer items-center gap-3 border-b border-border-hair px-3 py-2 last:border-b-0 hover:bg-bg-surface"
+        >
+          <input
+            type="checkbox"
+            class="size-4 rounded border-border-strong text-accent focus:ring-accent/40"
+            :checked="selectedExecutionIds.includes(execution.id)"
+            @change="toggleExecution(execution.id)"
+          >
+          <span class="min-w-0 flex-1">
+            <span class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="font-mono font-medium text-text-primary">{{ execution.rawSymbol }}</span>
+              <span
+                class="rounded px-1.5 py-0.5 font-mono text-2xs uppercase"
+                :class="execution.side === 'buy' ? 'bg-bull/10 text-bull' : 'bg-bear/10 text-bear'"
+              >
+                {{ execution.side }}
+              </span>
+              <span class="font-mono text-xs text-text-secondary">
+                {{ execution.qty }} @ {{ execution.price }}
+              </span>
+            </span>
+            <span class="text-2xs text-text-muted">{{ formatExecutionDate(execution.executedAt) }}</span>
+          </span>
+        </label>
       </div>
     </div>
 

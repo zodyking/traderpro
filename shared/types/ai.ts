@@ -89,6 +89,13 @@ export interface AIReviewPacket {
     symbol: string
     exchange?: string
   }
+  lessonContext?: {
+    id: string
+    title: string
+    stage: string
+    source: string
+    duration: string
+  }
   dataQuality: { source: string; gaps: number; warnings: string[] }
   requestedReviewType: 'strategy' | 'trade' | 'risk' | 'lesson' | 'market'
 }

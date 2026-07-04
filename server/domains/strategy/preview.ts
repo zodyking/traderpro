@@ -25,6 +25,7 @@ export async function previewStrategySignals(input: {
   })
 
   const ctx: CandleContext = {
+    times: series.candles.map((c: { time: string }) => new Date(c.time)),
     open: series.candles.map((c: { open: number }) => c.open),
     high: series.candles.map((c: { high: number }) => c.high),
     low: series.candles.map((c: { low: number }) => c.low),

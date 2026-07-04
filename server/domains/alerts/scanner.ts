@@ -83,6 +83,7 @@ export async function scanSymbols(
     if (candleData.candles.length === 0) continue
 
     const ctx: CandleContext = {
+      times: candleData.candles.map(c => new Date(c.time)),
       open: candleData.candles.map(c => c.open),
       high: candleData.candles.map(c => c.high),
       low: candleData.candles.map(c => c.low),

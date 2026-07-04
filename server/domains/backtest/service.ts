@@ -20,7 +20,7 @@ import { calculateMetrics } from './metrics'
 import { runMonteCarlo, type MonteCarloResult } from './monte-carlo'
 import { checkUsage, incrementUsage } from '../billing/entitlements'
 import { trackEvent } from '../analytics/service'
-import { enqueueBacktestJob } from './queue'
+import { enqueueBacktestJob, removeBacktestJob } from './queue'
 import { simulateLongOnly, type SimulatorCandle } from './simulator'
 
 function resolveSimulationSettings(
@@ -102,6 +102,17 @@ async function assertRunOwnership(userId: string, runId: string) {
   }
 
   return run
+}
+
+async function isRunCanceled(runId: string): Promise<boolean> {
+  const db = useDb()
+  const [run] = await db
+    .select({ status: backtestRuns.status })
+    .from(backtestRuns)
+    .where(eq(backtestRuns.id, runId))
+    .limit(1)
+
+  return run?.status === 'canceled'
 }
 
 function parseNumeric(value: string | null | undefined): number | null {
@@ -205,12 +216,42 @@ export async function enqueueBacktest(userId: string, input: BacktestCreateInput
   return { runId }
 }
 
+export async function cancelBacktest(userId: string, runId: string) {
+  const run = await assertRunOwnership(userId, runId)
+
+  if (run.status !== 'queued' && run.status !== 'running') {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Cannot cancel backtest in current state',
+    })
+  }
+
+  await removeBacktestJob(runId)
+
+  const db = useDb()
+  await db
+    .update(backtestRuns)
+    .set({
+      status: 'canceled',
+      finishedAt: new Date(),
+    })
+    .where(eq(backtestRuns.id, runId))
+
+  await publishProgress(runId, { pct: 100, stage: 'done' })
+
+  return { runId, status: 'canceled' as const }
+}
+
 export async function runBacktest(runId: string) {
   const db = useDb()
   const [run] = await db.select().from(backtestRuns).where(eq(backtestRuns.id, runId)).limit(1)
 
   if (!run) {
     throw new Error(`Backtest run ${runId} not found`)
+  }
+
+  if (run.status === 'canceled') {
+    return
   }
 
   const config = run.config as BacktestRunConfig & { interval?: CandleInterval }
@@ -224,6 +265,8 @@ export async function runBacktest(runId: string) {
 
     await publishProgress(runId, { pct: 10, stage: 'loading' })
 
+    if (await isRunCanceled(runId)) return
+
     const version = await getStrategyVersion(run.userId, run.strategyVersionId)
     const symbolIds = config.symbols
     const capitalPerSymbol = config.capital / symbolIds.length
@@ -234,6 +277,8 @@ export async function runBacktest(runId: string) {
     let totalBars = 0
 
     for (let index = 0; index < symbolIds.length; index++) {
+      if (await isRunCanceled(runId)) return
+
       const symbolId = symbolIds[index]!
 
       const series = await getCandles({
@@ -281,6 +326,8 @@ export async function runBacktest(runId: string) {
 
     await publishProgress(runId, { pct: 80, stage: 'computing_metrics' })
 
+    if (await isRunCanceled(runId)) return
+
     const mergedEquity = mergeEquityCurves(equityCurves, config.capital)
     const metrics = calculateMetrics({
       trades: allTrades,
@@ -308,6 +355,7 @@ export async function runBacktest(runId: string) {
         exposurePct: metrics.exposurePct?.toString() ?? null,
         longestWinStreak: metrics.longestWinStreak,
         longestLossStreak: metrics.longestLossStreak,
+        regimeBreakdown: metrics.regimeBreakdown,
         qualityWarnings: metrics.qualityWarnings,
       })
 

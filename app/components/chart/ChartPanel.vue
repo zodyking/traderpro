@@ -12,6 +12,7 @@ import {
 } from 'lightweight-charts'
 import type { IndicatorOverlay } from '#shared/types/indicators'
 import type { IndicatorCandle } from '~/utils/indicators'
+import type { ReplayEngine } from '~/composables/useReplayEngine'
 
 export type ChartMarker = {
   time: string
@@ -47,6 +48,41 @@ let seriesMarkers: ISeriesMarkersPluginApi<Time> | null = null
 let unsubscribe: (() => void) | null = null
 
 const { subscribe, connect } = useLiveChannel()
+const replayEngine = inject<ReplayEngine | null>('replayEngine', null)
+
+const displayCandles = computed(() => {
+  if (!replayEngine?.isActive.value) {
+    return candles.value
+  }
+  return candles.value.slice(0, replayEngine.visibleCount.value)
+})
+
+watch(
+  () => candles.value.length,
+  (count) => {
+    replayEngine?.setTotalBars(count)
+  },
+  { immediate: true },
+)
+
+watch(
+  displayCandles,
+  (nextCandles) => {
+    if (!series) return
+
+    const chartCandles = nextCandles.map((candle) => ({
+      time: toChartTime(candle.time),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+    }))
+
+    series.setData(chartCandles)
+    applyMarkers()
+  },
+  { deep: true },
+)
 
 function toChartTime(iso: string): UTCTimestamp {
   return Math.floor(new Date(iso).getTime() / 1000) as UTCTimestamp
@@ -132,10 +168,16 @@ async function loadCandles(symbolId: string) {
     applyMarkers()
 
     unsubscribe?.()
+    if (replayEngine?.isActive.value) {
+      return
+    }
+
     connect()
     unsubscribe = subscribe(
       `market.candle.${symbolId}.${props.interval}`,
       (payload) => {
+        if (replayEngine?.isActive.value) return
+
         const event = payload as {
           candle?: {
             time: string
@@ -223,6 +265,15 @@ function initChart() {
 }
 
 watch(
+  () => replayEngine?.isActive.value,
+  async (active, previous) => {
+    if (previous && !active && props.symbolId) {
+      await loadCandles(props.symbolId)
+    }
+  },
+)
+
+watch(
   () => props.markers,
   () => applyMarkers(),
   { deep: true },
@@ -292,7 +343,7 @@ onBeforeUnmount(() => {
     <ChartIndicatorOverlay
       v-if="chartRef && symbolId"
       :chart="chartRef"
-      :candles="candles"
+      :candles="displayCandles"
       :overlays="overlays"
     />
   </UiPanel>

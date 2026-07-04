@@ -45,6 +45,15 @@ async function replayLatest(channel: string, peer: Peer) {
       return
     }
 
+    if (parts[0] === 'market' && parts[1] === 'quote' && parts.length === 3) {
+      const symbolId = parts[2]
+      const latest = await redis.get(`quote:latest:${symbolId}`)
+      if (latest) {
+        peer.send(JSON.stringify({ channel, payload: JSON.parse(latest) }))
+      }
+      return
+    }
+
     if (parts[0] === 'backtest' && parts[2] === 'progress' && parts.length === 3) {
       const runId = parts[1]
       const latest = await redis.get(`backtest:progress:${runId}`)

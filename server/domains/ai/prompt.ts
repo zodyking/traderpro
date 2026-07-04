@@ -138,6 +138,15 @@ export function buildPrompt(packet: AIReviewPacket): string {
     }
   }
 
+  if (packet.lessonContext) {
+    lines.push('')
+    lines.push('## Learning Lesson')
+    lines.push(`**Title:** ${packet.lessonContext.title}`)
+    lines.push(`**Stage:** ${packet.lessonContext.stage}`)
+    lines.push(`**Source:** ${packet.lessonContext.source}`)
+    lines.push(`**Duration:** ${packet.lessonContext.duration}`)
+  }
+
   if (packet.marketContext) {
     lines.push('')
     lines.push('## Market Context')

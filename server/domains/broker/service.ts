@@ -14,8 +14,10 @@ import type {
   BrokerImportInput,
   CalendarPnlData,
   MistakeReportData,
+  OpenPositionRisk,
   PerformanceSummary,
   PlanVsExecutionData,
+  PositionRiskSummary,
 } from '../../../shared/schemas/broker'
 import { useDb } from '../../utils/db'
 import { parseBrokerCsv } from './csv-parser'
@@ -282,6 +284,73 @@ function computeFifoPnlWithDates(
   return trades
 }
 
+function computeOpenPositions(
+  rows: Array<{ rawSymbol: string, side: string, qty: number, price: number }>,
+): PositionRiskSummary {
+  const bySymbol = new Map<string, typeof rows>()
+  for (const row of rows) {
+    const key = row.rawSymbol.toUpperCase()
+    if (!bySymbol.has(key)) bySymbol.set(key, [])
+    bySymbol.get(key)!.push(row)
+  }
+
+  const openPositions: OpenPositionRisk[] = []
+
+  for (const [symbol, symbolRows] of bySymbol) {
+    const lots: FifoLot[] = []
+
+    for (const row of symbolRows) {
+      if (row.side === 'buy') {
+        lots.push({ qty: row.qty, price: row.price })
+      }
+      else {
+        let remaining = row.qty
+        while (remaining > 0 && lots.length > 0) {
+          const lot = lots[0]!
+          const matched = Math.min(remaining, lot.qty)
+          remaining -= matched
+          lot.qty -= matched
+          if (lot.qty <= 0) lots.shift()
+        }
+      }
+    }
+
+    if (lots.length === 0) continue
+
+    const qty = lots.reduce((sum, lot) => sum + lot.qty, 0)
+    const cost = lots.reduce((sum, lot) => sum + lot.qty * lot.price, 0)
+    const avgCost = qty > 0 ? cost / qty : 0
+    const notional = qty * avgCost
+
+    openPositions.push({
+      symbol,
+      qty,
+      avgCost: Math.round(avgCost * 100) / 100,
+      notional: Math.round(notional * 100) / 100,
+      pctOfExposure: 0,
+    })
+  }
+
+  const totalExposure = openPositions.reduce((sum, position) => sum + position.notional, 0)
+  const positions = openPositions
+    .map(position => ({
+      ...position,
+      pctOfExposure: totalExposure > 0
+        ? Math.round((position.notional / totalExposure) * 1000) / 10
+        : 0,
+    }))
+    .sort((a, b) => b.notional - a.notional)
+
+  return {
+    openPositions: positions.length,
+    totalExposure: Math.round(totalExposure * 100) / 100,
+    largestConcentration: positions.length > 0
+      ? Math.max(...positions.map(position => position.pctOfExposure))
+      : null,
+    positions: positions.slice(0, 10),
+  }
+}
+
 function sessionLabel(date: Date): string {
   const utcHour = date.getUTCHours()
   const utcMinute = date.getUTCMinutes()
@@ -440,6 +509,7 @@ export async function getPerformanceSummary(userId: string, accountId?: string):
     profitFactor: profitFactor !== null ? Math.round(profitFactor * 1000) / 1000 : null,
     tradesBySymbol,
     equityCurve,
+    positionRisk: computeOpenPositions(execData),
   }
 }
 

@@ -4,6 +4,7 @@ import { initDbPool } from '../server/plugins/db'
 import { initRedis } from '../server/utils/redis'
 import { processBacktestJob } from './backtest-processor'
 import { processMarketIngestJob, runMarketIngest } from './market-ingester'
+import { processScanJob } from './scan-processor'
 
 const QUEUE_NAMES = ['backtest', 'broker-sync', 'ai', 'scan', 'market-ingest'] as const
 
@@ -29,6 +30,12 @@ function createProcessor(queueName: QueueName) {
   if (queueName === 'market-ingest') {
     return async (job: Parameters<typeof processMarketIngestJob>[0]) => {
       await processMarketIngestJob(job)
+    }
+  }
+
+  if (queueName === 'scan') {
+    return async (job: Parameters<typeof processScanJob>[0]) => {
+      await processScanJob(job)
     }
   }
 

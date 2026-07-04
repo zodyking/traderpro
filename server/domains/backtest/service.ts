@@ -19,6 +19,7 @@ import { useRedis } from '../../utils/redis'
 import { calculateMetrics } from './metrics'
 import { runMonteCarlo, type MonteCarloResult } from './monte-carlo'
 import { checkUsage, incrementUsage } from '../billing/entitlements'
+import { trackEvent } from '../analytics/service'
 import { enqueueBacktestJob } from './queue'
 import { simulateLongOnly, type SimulatorCandle } from './simulator'
 
@@ -355,6 +356,11 @@ export async function runBacktest(runId: string) {
     })
 
     await publishProgress(runId, { pct: 100, stage: 'done' })
+    await trackEvent(run.userId, 'backtest.complete', {
+      runId,
+      tradeCount: allTrades.length,
+      symbolCount: symbolIds.length,
+    })
   }
   catch (error) {
     const message = error instanceof Error ? error.message : 'Backtest failed'

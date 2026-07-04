@@ -58,6 +58,15 @@ async function replayLatest(channel: string, peer: Peer) {
       for (const entry of recent.reverse()) {
         peer.send(JSON.stringify({ channel, payload: JSON.parse(entry) }))
       }
+      return
+    }
+
+    if (parts[0] === 'scanner' && parts[2] === 'results' && parts.length === 3) {
+      const scanId = parts[1]
+      const latest = await redis.get(`scan:results:${scanId}`)
+      if (latest) {
+        peer.send(JSON.stringify({ channel, payload: JSON.parse(latest) }))
+      }
     }
   }
   catch {

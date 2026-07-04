@@ -73,15 +73,21 @@ export async function checkUsage(
 }
 
 export async function incrementUsage(userId: string, metric: string): Promise<void> {
+  await incrementUsageBy(userId, metric, 1)
+}
+
+export async function incrementUsageBy(userId: string, metric: string, amount: number): Promise<void> {
+  if (amount <= 0) return
+
   const db = useDb()
   const period = currentPeriod()
 
   await db
     .insert(usageCounters)
-    .values({ userId, metric, period, used: 1 })
+    .values({ userId, metric, period, used: amount })
     .onConflictDoUpdate({
       target: [usageCounters.userId, usageCounters.metric, usageCounters.period],
-      set: { used: sql`${usageCounters.used} + 1` },
+      set: { used: sql`${usageCounters.used} + ${amount}` },
     })
 }
 

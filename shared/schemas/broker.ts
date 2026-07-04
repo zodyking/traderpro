@@ -51,6 +51,21 @@ export type ExecutionRow = {
   orderRef: string | null
 }
 
+export type OpenPositionRisk = {
+  symbol: string
+  qty: number
+  avgCost: number
+  notional: number
+  pctOfExposure: number
+}
+
+export type PositionRiskSummary = {
+  openPositions: number
+  totalExposure: number
+  largestConcentration: number | null
+  positions: OpenPositionRisk[]
+}
+
 export type PerformanceSummary = {
   totalTrades: number
   winRate: number | null
@@ -63,6 +78,7 @@ export type PerformanceSummary = {
   profitFactor: number | null
   tradesBySymbol: Array<{ symbol: string, trades: number, pnl: number }>
   equityCurve: Array<{ date: string, cumulativePnl: number }>
+  positionRisk: PositionRiskSummary
 }
 
 export type CalendarPnlDay = {

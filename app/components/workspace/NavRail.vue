@@ -6,6 +6,7 @@ const navItems = [
   { label: 'Chart', to: '/app/chart', icon: 'chart' },
   { label: 'Strategy', to: '/app/strategy', icon: 'strategy' },
   { label: 'Backtest', to: '/app/backtest', icon: 'backtest' },
+  { label: 'Scanner', to: '/app/scanner', icon: 'scanner' },
   { label: 'Broker', to: '/app/broker', icon: 'broker' },
   { label: 'Journal', to: '/app/journal', icon: 'journal' },
   { label: 'Learning', to: '/app/learning', icon: 'learning' },
@@ -61,6 +62,10 @@ function isActive(to: string) {
             <template v-else-if="item.icon === 'backtest'">
               <path d="M4 4v12h12" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M7 13l3-3 2 2 4-5" stroke-linecap="round" stroke-linejoin="round" />
+            </template>
+            <template v-else-if="item.icon === 'scanner'">
+              <circle cx="10" cy="10" r="6" />
+              <path d="M10 6v4l2.5 2.5" stroke-linecap="round" />
             </template>
             <template v-else-if="item.icon === 'broker'">
               <rect x="3" y="12" width="3" height="5" rx="0.5" />

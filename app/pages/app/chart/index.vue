@@ -31,6 +31,7 @@ type AlertRecord = {
 
 const alertsOpen = ref(false)
 const showAlertForm = ref(false)
+const paneCount = ref<1 | 2>(1)
 const alerts = ref<AlertRecord[]>([])
 const alertsLoading = ref(false)
 const scanning = ref(false)
@@ -106,6 +107,15 @@ function setIntervalValue(value: typeof intervals[number]) {
   workspace.chartInterval = value
   workspace.saveWorkspace()
 }
+
+const secondarySymbolId = computed(() => {
+  const symbols = workspace.watchlists[0]?.symbols ?? []
+  const ids = symbols.map(item => item.symbolId)
+  if (!workspace.activeSymbolId) return ids[1] ?? ids[0] ?? null
+  const activeIndex = ids.indexOf(workspace.activeSymbolId)
+  if (activeIndex === -1) return ids.find(id => id !== workspace.activeSymbolId) ?? null
+  return ids[activeIndex + 1] ?? ids.find(id => id !== workspace.activeSymbolId) ?? null
+})
 </script>
 
 <template>
@@ -124,6 +134,39 @@ function setIntervalValue(value: typeof intervals[number]) {
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+          <div
+            class="flex rounded-md border border-border-hair p-0.5"
+            role="group"
+            aria-label="Chart layout"
+          >
+            <button
+              type="button"
+              class="rounded px-2.5 py-1 text-xs transition-colors"
+              :class="
+                paneCount === 1
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-text-muted hover:bg-bg-raised hover:text-text-secondary'
+              "
+              :aria-pressed="paneCount === 1"
+              @click="paneCount = 1"
+            >
+              1 pane
+            </button>
+            <button
+              type="button"
+              class="rounded px-2.5 py-1 text-xs transition-colors"
+              :class="
+                paneCount === 2
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-text-muted hover:bg-bg-raised hover:text-text-secondary'
+              "
+              :aria-pressed="paneCount === 2"
+              @click="paneCount = 2"
+            >
+              2 panes
+            </button>
+          </div>
+
           <div class="flex flex-wrap gap-1">
             <button
               v-for="value in intervals"
@@ -178,8 +221,10 @@ function setIntervalValue(value: typeof intervals[number]) {
       />
 
       <ClientOnly>
-        <ChartChartPanel
-          :symbol-id="workspace.activeSymbolId"
+        <ChartChartGrid
+          :pane-count="paneCount"
+          :primary-symbol-id="workspace.activeSymbolId"
+          :secondary-symbol-id="secondarySymbolId"
           :interval="workspace.chartInterval ?? '1h'"
           :overlays="overlays"
         />
@@ -317,5 +362,7 @@ function setIntervalValue(value: typeof intervals[number]) {
           </div>
         </div>
     </div>
+
+    <RiskRiskPanel />
   </div>
 </template>

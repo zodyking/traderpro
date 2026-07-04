@@ -51,12 +51,23 @@ async function loadLinkedExecutions(
 async function enrichEntry(
   userId: string,
   entry: typeof journalEntries.$inferSelect,
-  symbolTicker: string | null,
+  symbolTicker?: string | null,
 ) {
+  let ticker = symbolTicker
+  if (ticker === undefined && entry.symbolId) {
+    const db = useDb()
+    const [row] = await db
+      .select({ ticker: symbols.ticker })
+      .from(symbols)
+      .where(eq(symbols.id, entry.symbolId))
+      .limit(1)
+    ticker = row?.ticker ?? null
+  }
+
   const linkedExecutions = await loadLinkedExecutions(userId, entry.executionIds)
   return {
     ...entry,
-    symbolTicker,
+    symbolTicker: ticker ?? null,
     linkedExecutions,
   }
 }
@@ -144,7 +155,7 @@ export async function createEntry(userId: string, input: JournalCreateInput) {
     })
     .returning()
 
-  return enrichEntry(userId, entry!, null)
+  return enrichEntry(userId, entry!)
 }
 
 export async function updateEntry(userId: string, entryId: string, input: JournalUpdateInput) {
@@ -173,7 +184,7 @@ export async function updateEntry(userId: string, entryId: string, input: Journa
     .where(and(eq(journalEntries.id, entryId), eq(journalEntries.userId, userId)))
     .returning()
 
-  return enrichEntry(userId, updated!, null)
+  return enrichEntry(userId, updated!)
 }
 
 export async function deleteEntry(userId: string, entryId: string) {

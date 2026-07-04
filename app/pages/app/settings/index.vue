@@ -7,7 +7,7 @@ definePageMeta({
 const store = useBrokerStore()
 const { theme, setTheme } = useTheme()
 
-const activeTab = ref<'broker' | 'account'>('broker')
+const activeTab = ref<'broker' | 'account' | 'api-keys'>('broker')
 
 onMounted(async () => {
   await Promise.all([
@@ -52,6 +52,18 @@ function handleImported() {
               @click="activeTab = 'broker'"
             >
               Broker Data
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              class="w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors"
+              :class="activeTab === 'api-keys'
+                ? 'bg-bg-raised text-accent'
+                : 'text-text-secondary hover:bg-bg-raised hover:text-text-primary'"
+              @click="activeTab = 'api-keys'"
+            >
+              API Keys
             </button>
           </li>
           <li>
@@ -136,6 +148,16 @@ function handleImported() {
               :executions-loading="store.executionsLoading"
             />
           </div>
+        </div>
+
+        <!-- API Keys tab -->
+        <div
+          v-else-if="activeTab === 'api-keys'"
+          class="mx-auto max-w-xl"
+        >
+          <UiPanel title="API Keys">
+            <SettingsApiKeysPanel />
+          </UiPanel>
         </div>
 
         <!-- Account tab -->

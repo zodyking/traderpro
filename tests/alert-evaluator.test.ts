@@ -14,7 +14,7 @@ function buildCandles(closes: number[], times?: Date[]): CandleContext {
     low,
     close: closes,
     volume,
-    times: times ?? closes.map((_, i) => new Date(`2024-01-10T15:00:00.000Z`)),
+    times: times ?? closes.map((_, _i) => new Date(`2024-01-10T15:00:00.000Z`)),
   }
 }
 

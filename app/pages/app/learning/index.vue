@@ -352,7 +352,7 @@ const activeCoachReview = computed(() =>
     </div>
 
     <UiPanel
-      v-if="coachReviewId && (activeCoachReview || coachError)"
+      v-if="coachReviewId && (activeCoachReview?.result || coachError || coachLoading)"
       title="Coach Feedback"
     >
       <p
@@ -361,13 +361,46 @@ const activeCoachReview = computed(() =>
       >
         {{ coachError }}
       </p>
-      <AiAIReviewWidget
-        v-else-if="activeCoachReview"
-        target-type="lesson"
-        review-type="lesson"
-        :target-id="coachReviewId"
-        label="Learning Coach"
-      />
+
+      <div
+        v-else-if="coachLoading"
+        class="flex flex-col gap-2"
+      >
+        <UiSkeleton class="h-4 w-3/4" />
+        <UiSkeleton class="h-4 w-1/2" />
+      </div>
+
+      <div
+        v-else-if="activeCoachReview?.result"
+        class="flex flex-col gap-3 text-sm text-text-secondary"
+      >
+        <div v-if="activeCoachReview.result.observations?.length">
+          <p class="mb-1 text-2xs font-semibold uppercase tracking-wide text-text-muted">
+            Observations
+          </p>
+          <ul class="list-disc space-y-1 pl-4">
+            <li
+              v-for="(item, index) in activeCoachReview.result.observations"
+              :key="`obs-${index}`"
+            >
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+        <div v-if="activeCoachReview.result.actions?.length">
+          <p class="mb-1 text-2xs font-semibold uppercase tracking-wide text-accent">
+            Actions
+          </p>
+          <ul class="list-disc space-y-1 pl-4">
+            <li
+              v-for="(item, index) in activeCoachReview.result.actions"
+              :key="`act-${index}`"
+            >
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </div>
     </UiPanel>
   </div>
 </template>

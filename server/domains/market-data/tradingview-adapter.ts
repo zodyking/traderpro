@@ -99,25 +99,19 @@ function mapPeriods(
     .sort((a, b) => a.time.localeCompare(b.time))
 }
 
-async function loadTradingView() {
-  return require('@mathieuc/tradingview') as {
-    searchMarketV3: (
-      search: string,
-      filter?: string,
-      offset?: number,
-    ) => Promise<TvSearchResult[]>
-    Client: new (options?: { token?: string, signature?: string }) => {
-      Session: { Chart: new () => TvChart }
-      end: () => void
-    }
-  }
-}
-
 type TvChart = {
   periods: TvPeriod[]
   setMarket: (id: string, opts: { timeframe: string, range?: number }) => void
   onUpdate: (cb: () => void) => void
   onError: (cb: (...args: unknown[]) => void) => void
+  delete: () => void
+}
+
+type TvQuoteSession = {
+  Market: new (symbol: string, session?: string) => {
+    onData: (cb: (data: TvQuoteData) => void) => void
+    close: () => void
+  }
   delete: () => void
 }
 
@@ -128,9 +122,24 @@ type TvQuoteData = {
   volume?: number
 }
 
-type TvClient = InstanceType<Awaited<ReturnType<typeof loadTradingView>>['Client']>
-type TvQuoteSession = InstanceType<TvClient['Session']['Quote']>
-type TvQuoteMarket = InstanceType<TvQuoteSession['Market']>
+type TvClient = {
+  Session: {
+    Chart: new () => TvChart
+    Quote: new (options?: { fields?: 'all' | 'price' }) => TvQuoteSession
+  }
+  end: () => void
+}
+
+async function loadTradingView() {
+  return require('@mathieuc/tradingview') as {
+    searchMarketV3: (
+      search: string,
+      filter?: string,
+      offset?: number,
+    ) => Promise<TvSearchResult[]>
+    Client: new (options?: { token?: string, signature?: string }) => TvClient
+  }
+}
 
 export class TradingViewAdapter implements MarketDataProvider {
   private fallback = createMockProvider()
@@ -248,7 +257,7 @@ export class TradingViewAdapter implements MarketDataProvider {
     try {
       const { client } = await this.ensureChartSession()
       const quoteSession = new client.Session.Quote({ fields: 'price' })
-      const markets: TvQuoteMarket[] = []
+      const markets: Array<InstanceType<TvQuoteSession['Market']>> = []
       const queue: QuoteEvent[] = []
       let notify: (() => void) | null = null
 

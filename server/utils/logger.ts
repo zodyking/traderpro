@@ -8,6 +8,34 @@ export interface LogEntry {
   meta?: Record<string, unknown>
 }
 
+async function captureInSentry(
+  error: unknown,
+  context: string,
+  meta?: Record<string, unknown>,
+) {
+  if (!process.env.SENTRY_DSN) return
+
+  try {
+    const Sentry = await import('@sentry/node')
+    if (error instanceof Error) {
+      Sentry.captureException(error, {
+        tags: { context },
+        extra: meta,
+      })
+      return
+    }
+
+    Sentry.captureMessage(String(error), {
+      level: 'error',
+      tags: { context },
+      extra: meta,
+    })
+  }
+  catch {
+    // Sentry is best-effort
+  }
+}
+
 function writeLog(entry: LogEntry) {
   const line = JSON.stringify(entry)
 
@@ -48,4 +76,6 @@ export function logError(context: string, error: unknown, meta?: Record<string, 
     ...meta,
     ...(stack ? { stack } : {}),
   })
+
+  void captureInSentry(error, context, meta)
 }
